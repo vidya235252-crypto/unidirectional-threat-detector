@@ -27,7 +27,7 @@ def generate_benign():
             "timestamp": iso(t),
             "src_ip": "10.0.0.5",
             "dst_ip": "93.184.216.34",
-            "src_port": 51000 + i,
+            "src_port": 51000,
             "dst_port": 443,
             "protocol": "TCP",
             "packet_size": random.randint(200, 1400),
