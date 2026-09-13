@@ -21,6 +21,10 @@ class Flow:
         if packet.timestamp > self.last_seen:
             self.last_seen = packet.timestamp
 
+    def is_stale(self, current_time: datetime, window_seconds: float) -> bool:
+        elapsed = (current_time - self.last_seen).total_seconds()
+        return elapsed > window_seconds
+
     @property
     def packet_count(self) -> int:
         return len(self.packets)
@@ -47,6 +51,21 @@ class FlowEngine:
         flow = self.flows[key]
         flow.add_packet(packet)
         return flow
+
+    def get_stale_flows(self, current_time: datetime, window_seconds: float) -> List[Flow]:
+        stale = [
+            flow for flow in self.flows.values()
+            if flow.is_stale(current_time, window_seconds)
+        ]
+        for flow in stale:
+            del self.flows[flow.flow_key]
+        return stale
+
+    def flush_all(self) -> List[Flow]:
+        remaining = list(self.flows.values())
+        self.flows.clear()
+        return remaining
+
 
     def get_flow(self, flow_key: FlowKey) -> Flow:
         return self.flows[flow_key]
