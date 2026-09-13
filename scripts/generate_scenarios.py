@@ -63,9 +63,9 @@ def generate_syn_flood():
         t += timedelta(milliseconds=random.randint(1, 4))
         packets.append({
             "timestamp": iso(t),
-            "src_ip": f"172.16.0.{random.randint(2, 254)}",
+            "src_ip": "172.16.0.50",
             "dst_ip": "10.0.0.20",
-            "src_port": random.randint(1024, 65000),
+            "src_port": 44444,
             "dst_port": 80,
             "protocol": "TCP",
             "packet_size": 60,
