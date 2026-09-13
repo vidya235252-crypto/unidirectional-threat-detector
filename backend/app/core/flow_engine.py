@@ -33,6 +33,22 @@ class Flow:
     def src_ip(self) -> str:
         return self.flow_key[0]
 
+    @property
+    def src_ip(self) -> str:
+        return self.flow_key[0]
+
+    @property
+    def dst_ip(self) -> str:
+        return self.flow_key[1]
+
+    @property
+    def dst_port(self) -> int:
+        return self.flow_key[3]
+
+    @property
+    def protocol(self) -> str:
+        return self.flow_key[4]
+
 
 class FlowEngine:
     def __init__(self):
