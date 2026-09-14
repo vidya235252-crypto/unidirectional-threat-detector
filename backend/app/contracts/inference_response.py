@@ -18,6 +18,7 @@ class InferenceResponse(BaseModel):
     model_version: str
 
     model_config = {
+        "protected_namespaces": (),
         "json_schema_extra": {
             "example": {
                 "flow_id": "f_10293",
