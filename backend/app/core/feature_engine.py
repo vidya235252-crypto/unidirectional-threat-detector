@@ -1,4 +1,5 @@
 import statistics
+import uuid
 from collections import defaultdict
 from typing import List
 
@@ -8,11 +9,12 @@ from app.contracts.feature_vector import FeatureVector
 
 class FeatureEngine:
     def __init__(self):
+        self._run_prefix = uuid.uuid4().hex[:8]
         self._counter = 0
 
     def _next_flow_id(self) -> str:
         self._counter += 1
-        return f"f_{self._counter:05d}"
+        return f"f_{self._run_prefix}_{self._counter:05d}"
 
     def _inter_arrival_stats(self, flow: Flow) -> tuple[float, float]:
         timestamps = [p.timestamp for p in flow.packets]

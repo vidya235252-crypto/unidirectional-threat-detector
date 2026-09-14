@@ -35,7 +35,7 @@ def run_scenario(scenario_path: Path) -> List[FeatureVector]:
     return [vector for _, vector in pairs]
 
 
-def run_scenario_with_alerts(scenario_path: Path) -> List[Alert]:
+def run_scenario_full(scenario_path: Path) -> Tuple[List[Tuple[Flow, FeatureVector]], List[Alert]]:
     pairs = _run_pipeline(scenario_path)
 
     alert_engine = AlertEngine()
@@ -52,4 +52,9 @@ def run_scenario_with_alerts(scenario_path: Path) -> List[Alert]:
 
         alert_engine.process(fv, response)
 
-    return alert_engine.all_alerts()
+    return pairs, alert_engine.all_alerts()
+
+
+def run_scenario_with_alerts(scenario_path: Path) -> List[Alert]:
+    _, alerts = run_scenario_full(scenario_path)
+    return alerts
