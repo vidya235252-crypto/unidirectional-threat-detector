@@ -1,0 +1,135 @@
+
+=== SHAPE ===
+Rows: 2,830,744  |  Columns: 12
+Memory usage: 574.9 MB
+
+=== DATA TYPES (count per type) ===
+float64    10
+str         2
+Name: count, dtype: int64
+
+=== NULL VALUES ===
+Flow Bytes/s              1359
+Total Fwd Packets            1
+Flow Duration                1
+Total Backward Packets       1
+Flow Packets/s               1
+Flow IAT Mean                1
+Flow IAT Std                 1
+SYN Flag Count               1
+Down/Up Ratio                1
+Average Packet Size          1
+Label                        1
+dtype: int64
+
+=== INFINITE VALUES ===
+Flow Packets/s    2833
+Flow Bytes/s      1479
+dtype: int64
+
+=== DUPLICATE ROWS ===
+Duplicate rows: 450,966 (15.93% of data)
+
+=== ATTACK TYPE DISTRIBUTION ===
+                            count  percent
+Label                                     
+BENIGN                    2273097    80.30
+DoS Hulk                   231073     8.16
+PortScan                   158930     5.61
+DDoS                       128027     4.52
+DoS GoldenEye               10293     0.36
+FTP-Patator                  7938     0.28
+SSH-Patator                  5897     0.21
+DoS slowloris                5796     0.20
+DoS Slowhttptest             5499     0.19
+Bot                          1966     0.07
+Web Attack_Brute Force       1507     0.05
+Web Attack_XSS                652     0.02
+Infiltration                   36     0.00
+Web Attack_Sql Injection       21     0.00
+Heartbleed                     11     0.00
+
+=== BASIC STATISTICS (numeric columns) ===
+                                mean           std          min           max
+Flow Duration           1.478566e+07  3.365374e+07        -13.0  1.200000e+08
+Total Fwd Packets       9.361160e+00  7.496728e+02          1.0  2.197590e+05
+Total Backward Packets  1.039377e+01  9.973883e+02          0.0  2.919220e+05
+Flow Bytes/s                     inf           NaN -261000000.0           inf
+Flow Packets/s                   inf           NaN   -2000000.0           inf
+Flow IAT Mean           1.298449e+06  4.507944e+06        -13.0  1.200000e+08
+Flow IAT Std            2.919271e+06  8.045870e+06          0.0  8.480026e+07
+SYN Flag Count          4.644646e-02  2.104500e-01          0.0  1.000000e+00
+Down/Up Ratio           6.835004e-01  6.804920e-01          0.0  1.560000e+02
+Average Packet Size     1.919837e+02  3.318603e+02          0.0  3.893333e+03
+
+=== ZERO-VARIANCE COLUMNS ===
+None found.
+
+============================================================
+EXTENDED ANALYSIS: LABEL BREAKDOWN OF FLAGGED ISSUES
+============================================================
+
+=== a. Label DISTRIBUTION — DUPLICATE ROWS (extras only) ===
+Label
+BENIGN                      318039
+PortScan                     68111
+DoS Hulk                     59100
+SSH-Patator                   2744
+FTP-Patator                   2005
+DoS slowloris                  526
+DoS Slowhttptest               313
+Web Attack_Brute Force          80
+DDoS                            18
+Bot                             17
+DoS GoldenEye                   12
+Web Attack_Sql Injection         1
+Name: count, dtype: int64
+Total: 450966 rows (15.93% of dataset)
+
+(Sanity check — full duplicate groups incl. originals:)
+Label
+BENIGN                      409282
+PortScan                    101501
+DoS Hulk                     60285
+SSH-Patator                   2852
+FTP-Patator                   2457
+DoS slowloris                  724
+DoS Slowhttptest               407
+Web Attack_Brute Force         119
+DDoS                            34
+Bot                             25
+DoS GoldenEye                   24
+Web Attack_Sql Injection         2
+Name: count, dtype: int64
+
+=== b. Label DISTRIBUTION — INF ROWS (Flow Bytes/s or Flow Packets/s) ===
+Label
+BENIGN         1745
+DoS Hulk        949
+PortScan        126
+Bot              10
+FTP-Patator       3
+Name: count, dtype: int64
+Total: 2833 rows (0.1001% of dataset)
+
+=== c. NULL ROW COUNT ===
+Rows with at least one null value: 1359 (0.0480% of dataset)
+
+=== d. Label DISTRIBUTION — FOR EVALUATION SPLIT & IMBALANCE STRATEGY ===
+                            count  percent
+Label                                     
+BENIGN                    2273097  80.3004
+DoS Hulk                   231073   8.1630
+PortScan                   158930   5.6144
+DDoS                       128027   4.5227
+DoS GoldenEye               10293   0.3636
+FTP-Patator                  7938   0.2804
+SSH-Patator                  5897   0.2083
+DoS slowloris                5796   0.2048
+DoS Slowhttptest             5499   0.1943
+Bot                          1966   0.0695
+Web Attack_Brute Force       1507   0.0532
+Web Attack_XSS                652   0.0230
+Infiltration                   36   0.0013
+Web Attack_Sql Injection       21   0.0007
+Heartbleed                     11   0.0004
