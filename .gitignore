@@ -18,3 +18,5 @@ Thumbs.db
 
 data/raw/
 data/processed/
+
+backend/app/db/*.db
