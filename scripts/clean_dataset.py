@@ -38,9 +38,15 @@ Decisions implemented, in execution order
    dropped rather than bucketed. Original label names are KEPT
    (no merging into a unified "SYN_FLOOD_VOLUMETRIC" label at this
    stage — that happens later, at training time, if at all).
-7. Apply log1p to the heavy-tailed columns, baked into this cleaned CSV
-   (applies to both Random Forest and Isolation Forest training sets;
-   harmless for RF since it's invariant to monotonic transforms).
+7. log1p is intentionally NOT applied here. It's deferred to the
+   Isolation Forest training script, since it was only ever needed to
+   stop IF's random splits from being distorted by heavy tails —
+   Random Forest doesn't need it (invariant to monotonic transforms),
+   and a raw-value cleaned CSV is what a live flow from the ingestion
+   engine will actually look like, so this file stays consistent with
+   that reality. Apply log1p to LOG1P_COLUMNS (see list further down,
+   kept here for reference) right before fitting Isolation Forest —
+   not before.
 
 Not implemented here (training-time concerns, not data-cleaning):
   - Decision #7 (class_weight='balanced' for Random Forest)
@@ -81,7 +87,9 @@ TIER1_LABELS = ["BENIGN", "Bot", "PortScan", "DDoS"]
 # Decision #2 (cleaning-review): 0/0 NaN case, distinct from the x/0 inf case.
 ZERO_DIVISION_NAN_COLUMNS = ["Flow Bytes/s", "Flow Packets/s"]
 
-# Decision #7: heavy-tailed columns, log1p baked into this cleaned CSV.
+# Reference only — NOT applied in this script. Apply log1p to these
+# columns in the Isolation Forest training script, right before .fit(),
+# not here. Kept here so the column list has one source of truth.
 LOG1P_COLUMNS = [
     "Flow Bytes/s",
     "Flow Packets/s",
@@ -304,8 +312,13 @@ def filter_tier1_scope(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def apply_log1p_transform(df: pd.DataFrame) -> pd.DataFrame:
-    """Decision: apply log1p to heavy-tailed columns, baked into cleaned CSV."""
-    _step_header("Apply log1p transform to heavy-tailed columns")
+    """NOT called from main() — kept here for reference/reuse only.
+
+    Intentionally deferred to the Isolation Forest training script.
+    Import this function from there (or copy its logic) and call it
+    right before df.fit(), on the IF-specific training subset only —
+    never on the shared cleaned CSV this script produces.
+    """
     cleaned = df.copy()
 
     for col in LOG1P_COLUMNS:
@@ -315,9 +328,6 @@ def apply_log1p_transform(df: pd.DataFrame) -> pd.DataFrame:
 
         n_negative = int((cleaned[col] < 0).sum())
         if n_negative > 0:
-            # Safety net: earlier diagnostics showed this should be zero
-            # after the negative-Flow-Duration drop. If it's not, clip
-            # rather than crash, and flag loudly for review.
             log.warning(
                 "%-20s: %s unexpected negative values found before log1p "
                 "(should be 0 — verified via check_negative_values.py). "
@@ -408,7 +418,8 @@ def main() -> None:
     df = drop_negative_duration(df)
     df = drop_duplicate_rows(df)
     df = filter_tier1_scope(df)
-    df = apply_log1p_transform(df)
+    # log1p is intentionally NOT called here — deferred to Isolation
+    # Forest training. This CSV is left at raw feature values.
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
