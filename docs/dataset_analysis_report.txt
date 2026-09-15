@@ -112,8 +112,14 @@ FTP-Patator       3
 Name: count, dtype: int64
 Total: 2833 rows (0.1001% of dataset)
 
-=== c. NULL ROW COUNT ===
-Rows with at least one null value: 1359 (0.0480% of dataset)
+=== c. NULL ROWS — COUNT & Label BREAKDOWN ===
+Total rows with at least one null value: 1359
+
+Label breakdown of null rows:
+Label
+DoS Hulk    949
+BENIGN      409
+Name: count, dtype: int64
 
 === d. Label DISTRIBUTION — FOR EVALUATION SPLIT & IMBALANCE STRATEGY ===
                             count  percent

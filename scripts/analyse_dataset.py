@@ -130,10 +130,21 @@ def report_extended_analysis(df: pd.DataFrame, label_col: str = "Label"):
         print("Flow Bytes/s or Flow Packets/s column not found — skipping.")
 
     # --- c. Null row count --------------------------------------------
-    print("\n=== c. NULL ROW COUNT ===")
-    null_rows = df[df.isnull().any(axis=1)]
-    print(f"Rows with at least one null value: {len(null_rows)} "
-          f"({len(null_rows) / len(df) * 100:.4f}% of dataset)")
+    print(f"\n=== c. NULL ROWS — COUNT & {label_col} BREAKDOWN ===")
+    null_mask = df.isnull().any(axis=1)
+    null_count = null_mask.sum()
+    print(f"Total rows with at least one null value: {null_count}")
+
+    if null_count > 0:
+        null_labels = df.loc[null_mask, label_col].value_counts()
+        print(f"\n{label_col} breakdown of null rows:")
+        print(null_labels)
+
+        if "Bot" in null_labels.index:
+            print(f"\n⚠ {null_labels['Bot']} null row(s) belong to the Bot class — "
+                  f"do NOT drop without inspecting these individually first.")
+    else:
+        print("No null rows found.")
 
     # --- d. Class distribution summary for imbalance planning --------------
     print(f"\n=== d. {label_col} DISTRIBUTION — FOR EVALUATION SPLIT & IMBALANCE STRATEGY ===")
