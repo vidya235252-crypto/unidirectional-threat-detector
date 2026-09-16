@@ -1,20 +1,29 @@
+import "./App.css";
 import { useEvents } from "./ws/useEvents";
+import { ScenarioControls } from "./components/ScenarioControls";
+import { AlertFeed } from "./components/AlertFeed";
+import { StatsPanel } from "./components/StatsPanel";
 
 function App() {
   const { alerts, status, currentScenario } = useEvents();
 
   return (
-    <div style={{ padding: "2rem", color: "white", background: "#1a1a1a", minHeight: "100vh" }}>
-      <h1>WS test</h1>
-      <p>WebSocket: {status}</p>
-      <p>Running: {currentScenario ?? "none"}</p>
-      <ul>
-        {alerts.map((a) => (
-          <li key={a.alert_id}>
-            {a.threat_class} — {a.severity} (confidence {a.confidence})
-          </li>
-        ))}
-      </ul>
+    <div className="app-shell">
+      <header className="app-header">
+        <h1>Unidirectional Threat Detector</h1>
+        <div className="connection">
+          <span className={`connection-dot ${status}`} />
+          <span>{status}{currentScenario ? `, running ${currentScenario}` : ""}</span>
+        </div>
+      </header>
+
+      <ScenarioControls currentScenario={currentScenario} />
+      <StatsPanel refreshKey={currentScenario} />
+
+      <section className="alert-log">
+        <h2>Live alerts</h2>
+        <AlertFeed alerts={alerts} />
+      </section>
     </div>
   );
 }
