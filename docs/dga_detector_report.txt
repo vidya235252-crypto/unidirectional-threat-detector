@@ -1,0 +1,34 @@
+======================================================================
+DGA / DNS TUNNELING DETECTOR — CALIBRATION REPORT
+======================================================================
+
+Loading Bambenek feed: C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector\data\raw\Bambenek.csv
+  -> 579,095 unique malicious domains loaded
+
+Loading Tranco list: C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector\data\raw\Tranco_list.csv
+  -> 100,000 unique benign domains loaded (sampled top 100,000)
+
+Building 2-gram model from benign domains...
+  -> 1,371 unique 2-grams learned
+
+Scoring reference sets for calibration...
+
+--- Calibration results ---
+Entropy threshold : 2.950  (accuracy: 88.75%, benign_weight=1.5)
+N-gram threshold  : -6.074  (accuracy: 91.80%)
+
+Allowlist built: top 10,000 Tranco domains bypass scoring
+Malicious entropy  mean/std: 3.542 / 0.355
+Benign    entropy  mean/std: 2.985 / 0.397
+Malicious ngram    mean/std: -7.728 / 0.985
+Benign    ngram    mean/std: -6.050 / 0.887
+
+--- Sanity check on sample domains ---
+  {'domain': 'google.com', 'flagged': False, 'reason': 'allowlisted', 'entropy': None, 'ngram_score': None, 'confidence': 0.0}
+  {'domain': 'facebook.com', 'flagged': False, 'reason': 'allowlisted', 'entropy': None, 'ngram_score': None, 'confidence': 0.0}
+  {'domain': 'xk29fj2q8zpmw1n.net', 'flagged': True, 'reason': 'entropy+ngram', 'entropy': 3.948, 'ngram_score': -10.275, 'confidence': 0.9}
+  {'domain': 'zsimijujsyldw.net', 'flagged': True, 'reason': 'blocklist_match', 'entropy': None, 'ngram_score': None, 'confidence': 1.0}
+  {'domain': '', 'flagged': False, 'reason': 'invalid_domain', 'entropy': None, 'ngram_score': None, 'confidence': 0.0}
+  {'domain': 'no-dots-here', 'flagged': False, 'reason': 'invalid_domain', 'entropy': None, 'ngram_score': None, 'confidence': 0.0}
+
+Done. Hardcode the thresholds above into is_dga() calls for production use.
