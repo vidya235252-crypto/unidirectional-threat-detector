@@ -1,0 +1,26 @@
+[INFO] Loaded 2,209,336 rows x 13 columns from 'data\processed\FINAL_DATA_cleaned.csv'.
+[INFO] Domain cleaning: dropped 48 logically invalid rows (negative Flow Duration / Flow IAT Mean / Flow IAT Max / Flow Bytes/s).
+[INFO] Breakdown by column (rows overlap where multiple were negative on the same row): {'Flow Duration': 48, 'Flow IAT Mean': 48, 'Flow IAT Max': 48, 'Flow Bytes/s': 42}
+[INFO] Dropped for multicollinearity/sparsity: ['Fwd Packet Length Std', 'Flow IAT Max']
+[INFO] 10 remaining active features:
+       - Destination Port
+       - Flow Duration
+       - Total Fwd Packets
+       - Total Length of Fwd Packets
+       - Flow Bytes/s
+       - Fwd Packets/s
+       - Flow IAT Mean
+       - Flow IAT Std
+       - Fwd Packet Length Mean
+       - Fwd Packet Length Min
+[INFO] Log1p-transformed for iForest pipeline: ['Flow Duration', 'Total Fwd Packets', 'Total Length of Fwd Packets', 'Flow Bytes/s', 'Fwd Packets/s', 'Flow IAT Mean', 'Flow IAT Std']
+
+[RESULT] RF pipeline      -> 'data\processed\cleaned_network_data_rf.csv'      | shape: 2,209,288 rows x 11 cols
+[RESULT] iForest pipeline -> 'data\processed\cleaned_network_data_iforest.csv' | shape: 2,209,288 rows x 11 cols
+
+IMPORTANT DECISIONS:
+Attack Type is kept in both output CSVs. RF needs it as the label; iForest doesn't train on it, but you'll want it afterward to check whether the anomaly scores actually separate attacks from benign — drop it yourself right before .fit() if your iForest call expects a label-free array.
+
+Flow IAT Std stays in the log-transform list even though it's the survivor of its correlated pair with Flow IAT Max (which gets dropped in Step 2). That's intentional — Std itself had skewness ~5.7 / kurtosis ~40 in your report, independent of its correlation with Max, so it still needs compressing for iForest.
+
+np.log1p is applied with a defensive .clip(lower=0) first, even though Step 1 only explicitly filters negatives on 4 of the 7 log-transformed columns (Total Fwd Packets, Total Length of Fwd Packets, Fwd Packets/s weren't in your negative-filter list). Your .describe() output shows their min is non-negative already, so this is a silent-NaN guard, not a sign something's wrong.

@@ -1,36 +1,52 @@
-# Dataset Cleaning Summary — PS26145
+# First-Layer Cleaning Summary
 
-| Metric | Before | After |
+_Generated 2026-09-21 20:57 by `scripts/first_layer_cleaning.py`_
+
+- **Input:** `data/raw/FINAL_DATA.csv`
+- **Output:** `data/processed/FINAL_DATA_cleaned.csv`
+- **Infinite-value handling mode:** `rows`
+
+## Row counts per step
+
+| Step | Rows Before | Rows After | Columns After | Rows Removed |
+|---|---|---|---|---|
+| 0. Raw file | 2,520,751 | 2,520,751 | 13 | 0 |
+| 2. Infinite values | 2,520,751 | 2,520,751 | 13 | 0 |
+| 3. NaN rows | 2,520,751 | 2,520,751 | 13 | 0 |
+| 4. Duplicates | 2,520,751 | 2,413,212 | 13 | 107,539 |
+| 6. Scope filter | 2,413,212 | 2,209,336 | 13 | 203,876 |
+
+- Rows removed for NaN: **0**
+- Duplicate rows removed: **107,539**
+- Remaining nulls / infinities: **0 / 0**
+
+## Attack-type distribution BEFORE filtering (2,413,212 rows)
+
+| Attack Type | Rows | Percentage |
 |---|---|---|
-| Total rows | 2,830,744 | 2,176,940 |
-| Total columns | 12 | 12 |
-| Rows removed | — | 653,804 (23.10%) |
+| Normal Traffic | 1,988,691 | 82.4085 |
+| DoS | 192,701 | 7.9852 |
+| DDoS | 128,007 | 5.3044 |
+| Port Scanning | 90,694 | 3.7582 |
+| Brute Force | 9,084 | 0.3764 |
+| Web Attacks | 2,091 | 0.0866 |
+| Bots | 1,944 | 0.0806 |
 
-## Class distribution — BEFORE
+## Attack-type distribution AFTER filtering (2,209,336 rows)
 
-| Label | Count | % |
+Kept: Bots, DDoS, Normal Traffic, Port Scanning
+
+| Attack Type | Rows | Percentage |
 |---|---|---|
-| BENIGN | 2,273,097 | 80.3003% |
-| DoS Hulk | 231,073 | 8.1630% |
-| PortScan | 158,930 | 5.6144% |
-| DDoS | 128,027 | 4.5227% |
-| DoS GoldenEye | 10,293 | 0.3636% |
-| FTP-Patator | 7,938 | 0.2804% |
-| SSH-Patator | 5,897 | 0.2083% |
-| DoS slowloris | 5,796 | 0.2048% |
-| DoS Slowhttptest | 5,499 | 0.1943% |
-| Bot | 1,966 | 0.0695% |
-| Web Attack_Brute Force | 1,507 | 0.0532% |
-| Web Attack_XSS | 652 | 0.0230% |
-| Infiltration | 36 | 0.0013% |
-| Web Attack_Sql Injection | 21 | 0.0007% |
-| Heartbleed | 11 | 0.0004% |
+| Normal Traffic | 1,988,691 | 90.0131 |
+| DDoS | 128,007 | 5.7939 |
+| Port Scanning | 90,694 | 4.105 |
+| Bots | 1,944 | 0.088 |
 
-## Class distribution — AFTER
+## Row count before vs after scope filter
 
-| Label | Count | % |
+| Before | After | Removed |
 |---|---|---|
-| BENIGN | 1,956,293 | 89.8644% |
-| DDoS | 128,009 | 5.8802% |
-| PortScan | 90,694 | 4.1661% |
-| Bot | 1,944 | 0.0893% |
+| 2,413,212 | 2,209,336 | 203,876 |
+
+**Final shape:** 2,209,336 rows x 13 columns

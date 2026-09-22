@@ -1,0 +1,10 @@
+{
+  "calibrated_threshold": -0.447,
+  "rule": "flag as anomalous if score_samples(x) <= calibrated_threshold",
+  "target_bots_recall": 0.9,
+  "validation_bots_recall_at_threshold": 0.9278350515463918,
+  "validation_normal_fpr_at_threshold": 0.5223418271052005,
+  "n_estimators": 200,
+  "contamination": "auto",
+  "random_state": 42
+}

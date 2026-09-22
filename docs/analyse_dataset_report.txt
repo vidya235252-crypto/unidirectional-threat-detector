@@ -1,0 +1,422 @@
+analyse_dataset.py report — generated 2026-09-20T15:32:42
+
+==============================================================================
+1. LOAD
+==============================================================================
+Input path: data\processed\processed_17.csv
+[OK]   Loaded 1,377,666 rows x 17 columns.
+
+==============================================================================
+2. SCHEMA VALIDATION
+==============================================================================
+Expected columns (17): ['Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Label']
+Actual columns   (17): ['Timestamp', 'Source IP', 'Destination IP', 'Destination Port', 'Flow Duration', 'Total Fwd Packets', 'Byte Count', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Average Packet Size', 'Protocol', 'Label', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV']
+[FLAG] Missing expected columns: ['Total Backward Packets', 'Flow Bytes/s']
+[FLAG] Unexpected extra columns present: ['Average Packet Size', 'Protocol']
+[OK]   Column count matches the locked 17-column spec.
+[FLAG] These numeric features are missing and will be SKIPPED in all stats below: ['Total Backward Packets', 'Flow Bytes/s']
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[OK]   No NaN values in any column.
+[OK]   No infinite values in numeric columns.
+[OK]   No exact duplicate rows.
+[OK]   All numeric columns contain only numeric values.
+
+==============================================================================
+4. LABEL DISTRIBUTION
+==============================================================================
+            count     pct
+Label                    
+BENIGN    1127773  81.861
+DDoS       128017   9.292
+PortScan   119922   8.705
+Bot          1954   0.142
+[FLAG] Class 'Bot' is severely under-represented: 0.142% of rows (1,954 rows). This is the same shape of problem that produced the weak Bot-class F1 (0.575) in RF v1 — expect the same failure mode unless class_weight / resampling is applied.
+
+==============================================================================
+5. PER-CLASS FEATURE STATISTICS
+==============================================================================
+
+--- Class: BENIGN  (n=1,127,773) ---
+                                  mean           std        min      median           max
+Flow Duration             1.166393e+07  3.064903e+07      -13.0  30850.0000  1.200000e+08
+Total Fwd Packets         9.733000e+00  7.405776e+02        1.0      2.0000  2.079640e+05
+Byte Count                7.458134e+02  1.371520e+04        0.0     66.0000  1.290000e+07
+Flow Packets/s            6.455612e+04  2.409004e+05 -2000000.0    123.1274  4.000000e+06
+Flow IAT Mean             8.335863e+05  3.452736e+06      -13.0  10586.6667  1.200000e+08
+Flow IAT Std              1.647861e+06  5.810196e+06        0.0    107.9645  8.480000e+07
+SYN Flag Count            5.140000e-02  2.208000e-01        0.0      0.0000  1.000000e+00
+Unique Destinations       2.136070e+01  3.057960e+01        1.0      7.0000  2.870000e+02
+Unique Destination Ports  6.324450e+01  2.212279e+02        1.0      3.0000  1.894000e+03
+IAT_CV                    1.335700e+00  1.688500e+00        0.0      1.4118  2.523661e+02
+
+--- Class: Bot  (n=1,954) ---
+                                 mean           std    min      median           max
+Flow Duration             353097.8874  1.974672e+06  1.000  70986.5000  6.100390e+07
+Total Fwd Packets              3.2073  4.027700e+00  1.000      3.0000  3.900000e+01
+Byte Count                  2661.6581  1.846075e+04  0.000      6.0000  2.079300e+05
+Flow Packets/s             46682.4471  1.522549e+05  0.299    101.2622  2.000000e+06
+Flow IAT Mean              59738.9777  1.361849e+05  1.000  11521.2500  3.541332e+06
+Flow IAT Std               87761.5030  1.898871e+05  0.000  27242.6267  4.901981e+06
+SYN Flag Count                 0.0000  0.000000e+00  0.000      0.0000  0.000000e+00
+Unique Destinations            6.2262  1.204870e+01  1.000      3.0000  1.810000e+02
+Unique Destination Ports       5.9857  6.862400e+00  1.000      4.0000  3.500000e+01
+IAT_CV                         1.3654  1.390800e+00  0.000      1.3656  9.802900e+00
+
+--- Class: DDoS  (n=128,017) ---
+                                  mean           std     min        median           max
+Flow Duration             1.695343e+07  3.101076e+07  1.0000  1.878814e+06  1.039416e+08
+Total Fwd Packets         4.472300e+00  1.897700e+00  1.0000  4.000000e+00  1.100000e+01
+Byte Count                3.190810e+01  1.195590e+01  6.0000  2.600000e+01  7.400000e+01
+Flow Packets/s            1.727994e+02  9.961821e+03  0.0369  2.592100e+00  2.000000e+06
+Flow IAT Mean             1.881355e+06  2.560204e+06  0.6667  4.890068e+05  4.420000e+07
+Flow IAT Std              5.111305e+06  8.084061e+06  0.0000  9.319385e+05  5.750000e+07
+SYN Flag Count            0.000000e+00  0.000000e+00  0.0000  0.000000e+00  0.000000e+00
+Unique Destinations       1.013500e+00  1.850000e-01  1.0000  1.000000e+00  5.000000e+00
+Unique Destination Ports  1.034900e+00  5.848300e+00  1.0000  1.000000e+00  1.210000e+03
+IAT_CV                    2.403800e+00  5.338000e-01  0.0000  2.442300e+00  3.955800e+00
+
+--- Class: PortScan  (n=119,922) ---
+                                 mean           std     min      median           max
+Flow Duration             109744.5604  2.676992e+06  1.0000     49.0000  1.198097e+08
+Total Fwd Packets              1.0233  4.898000e-01  1.0000      1.0000  1.500000e+02
+Byte Count                     1.1819  6.490800e+00  0.0000      2.0000  1.473000e+03
+Flow Packets/s             67274.6170  1.437567e+05  0.0334  40816.3265  2.000000e+06
+Flow IAT Mean              34959.7583  8.709889e+05  1.0000     49.0000  3.990000e+07
+Flow IAT Std               60523.7661  1.507447e+06  0.0000      0.0000  6.920000e+07
+SYN Flag Count                 0.0000  0.000000e+00  0.0000      0.0000  0.000000e+00
+Unique Destinations            1.0268  1.616000e-01  1.0000      1.0000  2.000000e+00
+Unique Destination Ports     934.8277  1.809490e+02  1.0000    996.0000  9.990000e+02
+IAT_CV                         0.0175  1.642000e-01  0.0000      0.0000  3.123600e+00
+
+==============================================================================
+6. ENGINEERED FEATURE DEEP DIVE
+==============================================================================
+
+--- IAT_CV (Flow IAT Std / Flow IAT Mean, sentinel = -1) ---
+Sentinel (-1) rows: 0 (0.000%)
+count    1.377666e+06
+mean     1.320200e+00
+std      1.619500e+00
+min      0.000000e+00
+25%      0.000000e+00
+50%      1.413800e+00
+75%      1.731900e+00
+max      2.523661e+02
+
+--- Unique Destinations ---
+count    1.377666e+06
+mean     1.767850e+01
+std      2.875650e+01
+min      1.000000e+00
+25%      1.000000e+00
+50%      3.000000e+00
+75%      2.300000e+01
+max      2.870000e+02
+
+--- Unique Destination Ports ---
+count    1.377666e+06
+mean     1.332514e+02
+std      3.232755e+02
+min      1.000000e+00
+25%      2.000000e+00
+50%      3.000000e+00
+75%      5.000000e+00
+max      1.894000e+03
+
+==============================================================================
+7. OUTLIER DETECTION (IQR method, 1.5x fence)
+==============================================================================
+                  column  n_outliers  pct_outliers                         note
+           Flow Duration      306912        22.278                             
+       Total Fwd Packets      169487        12.302                             
+              Byte Count      260035        18.875                             
+          Flow Packets/s      134008         9.727                             
+           Flow IAT Mean      281431        20.428                             
+            Flow IAT Std      306857        22.274                             
+          SYN Flag Count           0         0.000 IQR=0 (near-constant column)
+     Unique Destinations      133485         9.689                             
+Unique Destination Ports      245015        17.785                             
+                  IAT_CV       29600         2.149                             
+[FLAG] 'Flow Duration' has 22.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+[FLAG] 'Total Fwd Packets' has 12.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+[FLAG] 'Byte Count' has 18.9% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+[FLAG] 'Flow IAT Mean' has 20.4% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+[FLAG] 'Flow IAT Std' has 22.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+[FLAG] 'Unique Destination Ports' has 17.8% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+
+==============================================================================
+8. CORRELATION MATRIX (numeric features)
+==============================================================================
+                          Flow Duration  Total Fwd Packets  Byte Count  Flow Packets/s  Flow IAT Mean  Flow IAT Std  SYN Flag Count  Unique Destinations  Unique Destination Ports  IAT_CV
+Flow Duration                     1.000              0.024       0.074          -0.099          0.517         0.643           0.019                0.106                    -0.093   0.356
+Total Fwd Packets                 0.024              1.000       0.332          -0.002         -0.000         0.000           0.002                0.001                    -0.004   0.089
+Byte Count                        0.074              0.332       1.000          -0.011          0.014         0.031           0.014                0.008                     0.007   0.112
+Flow Packets/s                   -0.099             -0.002      -0.011           1.000         -0.070        -0.081           0.203               -0.098                     0.065  -0.187
+Flow IAT Mean                     0.517             -0.000       0.014          -0.070          1.000         0.831           0.030               -0.033                    -0.061   0.132
+Flow IAT Std                      0.643              0.000       0.031          -0.081          0.831         1.000           0.030               -0.041                    -0.048   0.258
+SYN Flag Count                    0.019              0.002       0.014           0.203          0.030         0.030           1.000               -0.080                    -0.040   0.002
+Unique Destinations               0.106              0.001       0.008          -0.098         -0.033        -0.041          -0.080                1.000                    -0.182   0.168
+Unique Destination Ports         -0.093             -0.004       0.007           0.065         -0.061        -0.048          -0.040               -0.182                     1.000  -0.197
+IAT_CV                            0.356              0.089       0.112          -0.187          0.132         0.258           0.002                0.168                    -0.197   1.000
+
+==============================================================================
+9. IP / PORT CARDINALITY
+==============================================================================
+
+--- Source IP ---
+Unique values: 12,460
+Top 10 most frequent:
+Source IP
+172.16.0.1       251306
+192.168.10.8     146635
+192.168.10.3     145779
+192.168.10.12     78202
+192.168.10.5      74594
+192.168.10.9      73052
+192.168.10.15     72793
+192.168.10.14     68630
+192.168.10.19     66179
+192.168.10.16     64103
+
+--- Destination IP ---
+Unique values: 14,250
+Top 10 most frequent:
+Destination IP
+192.168.10.3     338225
+192.168.10.50    264799
+192.168.10.1     143105
+172.16.0.1        42585
+192.168.10.5      30446
+192.168.10.15     23388
+192.168.10.14     23155
+192.168.10.9      22260
+192.168.10.12     21434
+192.168.10.16     20440
+
+--- Destination Port ---
+Well-known (<1024):     1,007,858
+Registered (1024-49151): 226,595
+Ephemeral (>=49152):    143,213
+Top 10 most frequent ports:
+Destination Port
+53      471219
+80      248297
+443     226761
+123       9809
+22        5703
+137       3764
+389       3303
+21        3102
+8080      2619
+88        2579
+
+==============================================================================
+10. TIMESTAMP SANITY
+==============================================================================
+Range: 2017-05-07 01:00:00  -->  2017-07-07 12:59:00
+Span:  61 days 11:59:00
+
+==============================================================================
+11. EDGE CASE SELF-TESTS
+==============================================================================
+Running this script's core routines against synthetic malformed/degenerate inputs to confirm nothing crashes.
+
+
+==============================================================================
+2. SCHEMA VALIDATION
+==============================================================================
+Expected columns (17): ['Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Label']
+Actual columns   (17): ['Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Label']
+[OK]   All expected columns present.
+[OK]   No unexpected extra columns.
+[OK]   Column count matches the locked 17-column spec.
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[FLAG] Skipped — no rows to check.
+
+==============================================================================
+4. LABEL DISTRIBUTION
+==============================================================================
+[FLAG] Skipped — no Label column / no rows.
+
+==============================================================================
+5. PER-CLASS FEATURE STATISTICS
+==============================================================================
+[FLAG] Skipped — no Label column / no rows.
+
+==============================================================================
+6. ENGINEERED FEATURE DEEP DIVE
+==============================================================================
+[FLAG] Skipped — no rows.
+
+==============================================================================
+7. OUTLIER DETECTION (IQR method, 1.5x fence)
+==============================================================================
+[FLAG] Skipped — no rows / no numeric columns.
+
+==============================================================================
+8. CORRELATION MATRIX (numeric features)
+==============================================================================
+[FLAG] Skipped — need at least 2 usable numeric columns.
+
+==============================================================================
+9. IP / PORT CARDINALITY
+==============================================================================
+[FLAG] Skipped — no rows.
+
+==============================================================================
+10. TIMESTAMP SANITY
+==============================================================================
+[FLAG] Skipped — no Timestamp column / no rows.
+[PASS] empty dataframe (header only)
+
+==============================================================================
+2. SCHEMA VALIDATION
+==============================================================================
+Expected columns (17): ['Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Label']
+Actual columns   (2): ['Source IP', 'Label']
+[FLAG] Missing expected columns: ['Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV']
+[OK]   No unexpected extra columns.
+[FLAG] Column count is 2, expected 17.
+[FLAG] These numeric features are missing and will be SKIPPED in all stats below: ['Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV']
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[OK]   No NaN values in any column.
+[OK]   No infinite values in numeric columns.
+[OK]   No exact duplicate rows.
+[OK]   All numeric columns contain only numeric values.
+[PASS] missing required columns
+
+==============================================================================
+2. SCHEMA VALIDATION
+==============================================================================
+Expected columns (17): ['Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Label']
+Actual columns   (17): ['Flow Duration', 'Total Fwd Packets', 'Total Backward Packets', 'Byte Count', 'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std', 'SYN Flag Count', 'Unique Destinations', 'Unique Destination Ports', 'IAT_CV', 'Source IP', 'Destination IP', 'Destination Port', 'Timestamp', 'Label']
+[OK]   All expected columns present.
+[OK]   No unexpected extra columns.
+[OK]   Column count matches the locked 17-column spec.
+
+==============================================================================
+5. PER-CLASS FEATURE STATISTICS
+==============================================================================
+
+--- Class: BENIGN  (n=1) ---
+                          mean  std  min  median  max
+Flow Duration              0.0  NaN  0.0     0.0  0.0
+Total Fwd Packets          0.0  NaN  0.0     0.0  0.0
+Total Backward Packets     0.0  NaN  0.0     0.0  0.0
+Byte Count                 0.0  NaN  0.0     0.0  0.0
+Flow Bytes/s               0.0  NaN  0.0     0.0  0.0
+Flow Packets/s             0.0  NaN  0.0     0.0  0.0
+Flow IAT Mean              0.0  NaN  0.0     0.0  0.0
+Flow IAT Std               0.0  NaN  0.0     0.0  0.0
+SYN Flag Count             0.0  NaN  0.0     0.0  0.0
+Unique Destinations        0.0  NaN  0.0     0.0  0.0
+Unique Destination Ports   0.0  NaN  0.0     0.0  0.0
+IAT_CV                     0.0  NaN  0.0     0.0  0.0
+
+==============================================================================
+7. OUTLIER DETECTION (IQR method, 1.5x fence)
+==============================================================================
+                  column  n_outliers  pct_outliers                         note
+           Flow Duration           0           0.0 IQR=0 (near-constant column)
+       Total Fwd Packets           0           0.0 IQR=0 (near-constant column)
+  Total Backward Packets           0           0.0 IQR=0 (near-constant column)
+              Byte Count           0           0.0 IQR=0 (near-constant column)
+            Flow Bytes/s           0           0.0 IQR=0 (near-constant column)
+          Flow Packets/s           0           0.0 IQR=0 (near-constant column)
+           Flow IAT Mean           0           0.0 IQR=0 (near-constant column)
+            Flow IAT Std           0           0.0 IQR=0 (near-constant column)
+          SYN Flag Count           0           0.0 IQR=0 (near-constant column)
+     Unique Destinations           0           0.0 IQR=0 (near-constant column)
+Unique Destination Ports           0           0.0 IQR=0 (near-constant column)
+                  IAT_CV           0           0.0 IQR=0 (near-constant column)
+[PASS] single-row dataframe (std/IQR degenerate cases)
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[FLAG] NaN values found (prepare_dataset.py should have dropped these):
+Flow Duration               5
+Total Fwd Packets           5
+Total Backward Packets      5
+Byte Count                  5
+Flow Bytes/s                5
+Flow Packets/s              5
+Flow IAT Mean               5
+Flow IAT Std                5
+SYN Flag Count              5
+Unique Destinations         5
+Unique Destination Ports    5
+IAT_CV                      5
+Source IP                   5
+Destination IP              5
+Destination Port            5
+Timestamp                   5
+[OK]   No infinite values in numeric columns.
+[FLAG] 4 exact duplicate rows found (80.000% of rows).
+[OK]   All numeric columns contain only numeric values.
+[PASS] all-NaN numeric columns
+
+==============================================================================
+4. LABEL DISTRIBUTION
+==============================================================================
+        count    pct
+Label               
+BENIGN     50  100.0
+[FLAG] Expected label classes with ZERO rows: {'PortScan', 'DDoS', 'Bot'}
+[PASS] single-class dataset (missing expected labels)
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[OK]   No NaN values in any column.
+[OK]   No infinite values in numeric columns.
+[FLAG] 3 exact duplicate rows found (60.000% of rows).
+[FLAG] Non-numeric junk found in supposedly numeric columns: {'Flow Duration': 1, 'Total Fwd Packets': 1, 'Total Backward Packets': 1, 'Byte Count': 1, 'Flow Bytes/s': 1, 'Flow Packets/s': 1, 'Flow IAT Mean': 1, 'Flow IAT Std': 1, 'SYN Flag Count': 1, 'Unique Destinations': 1, 'Unique Destination Ports': 1, 'IAT_CV': 1}
+[PASS] non-numeric contamination in numeric column
+
+==============================================================================
+3. CLEANLINESS CHECKS (NaN / Inf / Duplicates)
+==============================================================================
+[OK]   No NaN values in any column.
+[FLAG] Infinite values found in numeric columns: {'Flow Duration': 1, 'Total Fwd Packets': 1, 'Total Backward Packets': 1, 'Byte Count': 1, 'Flow Bytes/s': 1, 'Flow Packets/s': 1, 'Flow IAT Mean': 1, 'Flow IAT Std': 1, 'SYN Flag Count': 1, 'Unique Destinations': 1, 'Unique Destination Ports': 1, 'IAT_CV': 1}
+[OK]   No exact duplicate rows.
+[OK]   All numeric columns contain only numeric values.
+[PASS] infinite values in numeric column
+
+==============================================================================
+1. LOAD
+==============================================================================
+Input path: this/path/does/not/exist.csv
+[FLAG] File not found at 'this/path/does/not/exist.csv'. Nothing to analyse.
+[PASS] nonexistent input file
+
+Edge-case tests: 8 passed, 0 failed.
+
+==============================================================================
+12. SUMMARY FOR EVALUATOR
+==============================================================================
+Rows analysed: 1,377,666
+Columns:       17
+
+10 issue(s) found:
+  1. Missing expected columns: ['Total Backward Packets', 'Flow Bytes/s']
+  2. Unexpected extra columns present: ['Average Packet Size', 'Protocol']
+  3. These numeric features are missing and will be SKIPPED in all stats below: ['Total Backward Packets', 'Flow Bytes/s']
+  4. Class 'Bot' is severely under-represented: 0.142% of rows (1,954 rows). This is the same shape of problem that produced the weak Bot-class F1 (0.575) in RF v1 — expect the same failure mode unless class_weight / resampling is applied.
+  5. 'Flow Duration' has 22.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+  6. 'Total Fwd Packets' has 12.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+  7. 'Byte Count' has 18.9% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+  8. 'Flow IAT Mean' has 20.4% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+  9. 'Flow IAT Std' has 22.3% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+  10. 'Unique Destination Ports' has 17.8% IQR outliers — for flow-level network features this is often real attack traffic, not noise. Don't silently clip/drop these without checking their label mix.
+
+Verdict: NEEDS ATTENTION before this dataset is used for training/inference.

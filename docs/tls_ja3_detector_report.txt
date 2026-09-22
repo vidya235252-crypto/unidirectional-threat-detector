@@ -1,0 +1,24 @@
+======================================================================
+TLS/QUIC JA3 FINGERPRINT DETECTOR — REPORT
+======================================================================
+
+Loading fingerprint blocklist: C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector\data\raw\ja3_fingerprints.csv
+  -> 97 known-bad fingerprints loaded
+  -> matched hash column: ''ja3_md5'' (column index 0)
+  -> sample loaded value: 'bc6c386f480ee97b9d9e52d472b772d8'
+
+--- Sanity check on sample sessions ---
+  {'transport': 'tls', 'role': 'client', 'fingerprint': '27a8394ba48176f6a534a68a4d44e391', 'flagged': False, 'reason': 'clean'}
+  known-bad-hash direct check: {'fingerprint': 'bc6c386f480ee97b9d9e52d472b772d8', 'flagged': True}
+  {'transport': 'quic', 'role': 'client', 'fingerprint': '0643f8b1c8e275bf800747abfc0343a3', 'flagged': False, 'reason': 'clean'}
+  {'transport': 'tls', 'role': 'server', 'fingerprint': 'ef2883f9861e9cbc9e3b10a533129529', 'flagged': False, 'reason': 'clean'}
+
+--- Edge cases ---
+  empty cipher list : {'transport': 'tls', 'role': 'client', 'fingerprint': 'bddda940f9963577c41d7c28b1a5f65f', 'flagged': False, 'reason': 'clean'}
+  all-GREASE ciphers: {'transport': 'tls', 'role': 'client', 'fingerprint': 'bddda940f9963577c41d7c28b1a5f65f', 'flagged': False, 'reason': 'clean'}
+  missing tls_version: {'transport': 'tls', 'role': 'client', 'fingerprint': None, 'flagged': False, 'reason': 'missing_tls_version'}
+  invalid transport : {'transport': 'http', 'role': 'client', 'fingerprint': None, 'flagged': False, 'reason': 'invalid_session'}
+  not a dict at all : {'transport': None, 'role': None, 'fingerprint': None, 'flagged': False, 'reason': 'invalid_session'}
+  empty dict        : {'transport': None, 'role': None, 'fingerprint': None, 'flagged': False, 'reason': 'invalid_session'}
+
+Done. blocklist matching is pure lookup — refresh ja3_fingerprints.csv regularly since coverage (not tuning) determines accuracy here.
