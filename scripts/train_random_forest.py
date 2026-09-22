@@ -1,364 +1,270 @@
 """
 train_random_forest.py
+========================
+Random Forest training pipeline for the RF branch (Tier 1 ML detection —
+C2/Bot, Port Scanning, DDoS — vs. Normal Traffic).
 
-Trains a Random Forest classifier on the cleaned CICIDS2017 (12-feature)
-dataset for PS26145 Tier-1 threat classification: BENIGN, Bot, PortScan, DDoS.
+Pipeline (in order):
+    1. Load the consolidated RF dataset, split features/target, and do a
+       two-step stratified 70/15/15 Train/Validation/Test split.
+    2. Train a class_weight='balanced' RandomForestClassifier on Train,
+       then compare Train vs Validation metrics as an overfitting check
+       (this is *not* a full hyperparameter search — see the note in
+       Section 2 for why, and how to extend it if you have the compute
+       budget).
+    3. Run the finalized model once, on the untouched Test set, and print
+       the classification report, labeled confusion matrix, and ranked
+       feature importances.
+    4. Serialize the model with joblib.
 
-Reproduces the EXACT 80/20 stratified split (random_state=42) used by
-heuristic_baseline.py, so RF's metrics are directly comparable against the
-heuristic baseline (docs/heuristic_baseline_metrics.md) on an apples-to-apples
-basis -- that comparison is the entire point of this script (RF has to beat
-the heuristic floor, not just "look good" on its own).
+Usage
+-----
+    python train_random_forest.py
 
---------------------------------------------------------------------------
-VERSION LOG (kept here so every change is traceable against past runs)
---------------------------------------------------------------------------
-v1 -> results in docs/random_forest_metrics.md
-     - class_weight='balanced', raw 11 CICIDS features, no engineered features
-     - Bot F1 = 0.5750 (precision 0.4574, recall 0.7738) -- the weak class
+Reads   : data/processed/cleaned_network_data_rf.csv
+Writes  : models/random_forest_model.joblib
 
-v2 (THIS VERSION) -> results in docs/random_forest_metrics_v2.md
-     CHANGE 1: added engineered feature `IAT_CV` = Flow IAT Std / Flow IAT
-               Mean (coefficient of variation of inter-arrival time). Same
-               ratio the heuristic Bot rule used for periodicity detection --
-               handed to RF directly instead of making it reconstruct the
-               ratio indirectly from the two raw IAT columns.
-     CHANGE 2: class_weight switched from 'balanced' to an explicit dict
-               {'BENIGN': 1, 'Bot': 15, 'PortScan': 1, 'DDoS': 1} -- pushes
-               harder specifically on Bot without disturbing the three
-               already near-perfect classes.
-     GOAL: raise Bot's F1 above 0.5750 without degrading BENIGN precision /
-     FPR or the other classes' near-perfect scores. v2's report explicitly
-     restates v1's Bot numbers so the two are diffable at a glance.
---------------------------------------------------------------------------
-
-Usage:
-    python train_random_forest.py \
-        --input data/processed/cicids2017_12_features_cleaned.csv \
-        --output-metrics docs/random_forest_metrics_v2.md
+Dependencies: pandas, numpy, scikit-learn, joblib
 """
 
-import argparse
-import logging
 from pathlib import Path
-
+import sys
+import time
+import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+import joblib
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, accuracy_score
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger(__name__)
+# --------------------------------------------------------------------------
+# Configuration
+# --------------------------------------------------------------------------
 
-LABEL_COL = "Label"
-# Fixed class order -> keeps confusion matrix / metrics table layout identical
-# to heuristic_baseline_metrics.md every run, regardless of pandas' sort order.
-CLASS_ORDER = ["BENIGN", "Bot", "PortScan", "DDoS"]
+INPUT_PATH = Path("data/processed/cleaned_network_data_rf.csv")
+MODEL_DIR = Path("models")
+MODEL_PATH = MODEL_DIR / "random_forest_model.joblib"
+
+TARGET_COL = "Attack Type"
+
+# Two-step split: first carve off 30% as temp, then split temp 50/50
+# -> 70% train / 15% val / 15% test overall. Stratified at both steps
+# so the 0.088%-prevalence Bots class stays proportional in all three.
+TRAIN_SIZE = 0.70
+VAL_SIZE = 0.15   # of the FULL dataset, not of the temp split
+TEST_SIZE = 0.15  # of the FULL dataset
 RANDOM_STATE = 42
-TEST_SIZE = 0.20
 
-# CHANGE 2 (v2): explicit per-class weights, replacing class_weight='balanced'.
-# Only Bot is pushed up -- the other three classes were already near-perfect
-# in v1, so leaving them at 1 avoids disturbing what already worked.
-CLASS_WEIGHTS = {"BENIGN": 1, "Bot": 15, "PortScan": 1, "DDoS": 1}
+# RandomForest hyperparameters. max_depth and min_samples_leaf are
+# deliberately capped rather than left at defaults (unlimited depth):
+# with class_weight='balanced' up-weighting the 0.088% Bots class by
+# roughly 1/prevalence, an unconstrained tree will happily carve out
+# single-sample leaves to chase that minority class in the training
+# fold, which is exactly what the Train-vs-Validation comparison below
+# is built to catch. The cap trades a small amount of training-set
+# purity for a model that generalizes past this specific 2.2M-row draw.
+RF_PARAMS = dict(
+    n_estimators=300,
+    max_depth=20,
+    min_samples_leaf=5,
+    class_weight="balanced",
+    n_jobs=-1,
+    random_state=RANDOM_STATE,
+)
 
-# v1 baseline numbers (from docs/random_forest_metrics.md), hardcoded here so
-# the v2 report can print an explicit before/after comparison without needing
-# to re-parse the old markdown file.
-V1_RESULTS = {
-    "accuracy": 0.9983,
-    "benign_fpr": 0.001587,  # 0.1587%
-    "per_class": {
-        "BENIGN":   {"precision": 0.9997, "recall": 0.9984, "f1": 0.9991},
-        "Bot":      {"precision": 0.4574, "recall": 0.7738, "f1": 0.5750},
-        "PortScan": {"precision": 0.9876, "recall": 0.9997, "f1": 0.9936},
-        "DDoS":     {"precision": 0.9986, "recall": 0.9996, "f1": 0.9991},
-    },
-}
+# Gap (Train metric - Validation metric) above which we print an
+# explicit overfitting warning.
+OVERFIT_GAP_THRESHOLD = 0.05
 
 
-def load_data(input_path: Path) -> pd.DataFrame:
-    """Load the cleaned dataset and log shape / label breakdown."""
-    logger.info("Loading cleaned dataset from %s", input_path)
-    df = pd.read_csv(input_path)
-    df.columns = df.columns.str.strip()
+# --------------------------------------------------------------------------
+# Step 1 — Load & three-way stratified split
+# --------------------------------------------------------------------------
 
-    logger.info("Loaded %s rows, %s columns", f"{len(df):,}", df.shape[1])
-    logger.info("Label breakdown:")
-    for label, count in df[LABEL_COL].value_counts().items():
-        logger.info("  %-10s %10s rows (%.4f%%)", label, f"{count:,}", 100 * count / len(df))
-
-    missing = set(CLASS_ORDER) - set(df[LABEL_COL].unique())
-    if missing:
-        raise ValueError(f"Expected classes not found in data: {missing}")
-
+def load_data(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        sys.exit(f"[FATAL] Input file not found at '{path}'.")
+    df = pd.read_csv(path)
+    if TARGET_COL not in df.columns:
+        sys.exit(f"[FATAL] Expected target column '{TARGET_COL}' not found in {path}.")
+    print(f"[INFO] Loaded {len(df):,} rows x {df.shape[1]} columns from '{path}'.")
     return df
 
 
-def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    CHANGE 1 (v2): add IAT_CV = Flow IAT Std / Flow IAT Mean.
+def three_way_split(df: pd.DataFrame):
+    X = df.drop(columns=[TARGET_COL])
+    y = df[TARGET_COL]
 
-    This is the exact coefficient-of-variation ratio the heuristic Bot rule
-    used for periodicity detection (low CV = very regular timing = likely
-    C2 beaconing). RF could previously only approximate this relationship
-    indirectly by splitting separately on 'Flow IAT Mean' and 'Flow IAT Std'
-    across different trees -- handing it the ratio directly as one column
-    makes that signal explicit and easier for trees to split on cleanly.
-
-    Guard: when Flow IAT Mean == 0, the ratio is undefined. Unlike the
-    heuristic rule (which could just let `NaN < threshold` evaluate False),
-    RandomForestClassifier CANNOT fit on raw NaN values -- it raises a
-    ValueError. So undefined rows get an explicit out-of-range sentinel
-    (-1) instead of NaN or 0: 0 would misleadingly look like "perfectly
-    regular timing" (the exact Bot signature), whereas -1 can never occur
-    naturally (CV is a ratio of two non-negative values) and lets the trees
-    learn "-1 means undefined" as its own distinct split, if useful.
-
-    NOTE: this is computed in-memory only, on this run's DataFrame. It is
-    NEVER written back to cicids2017_12_features_cleaned.csv -- the shared
-    cleaned CSV stays untouched and reusable by every other script (Isolation
-    Forest does not need this feature -- see Change Log in the module
-    docstring).
-    """
-    logger.info("Adding engineered feature: IAT_CV = Flow IAT Std / Flow IAT Mean")
-    df = df.copy()
-    mean = df["Flow IAT Mean"]
-    std = df["Flow IAT Std"]
-
-    undefined_mask = mean == 0
-    iat_cv = pd.Series(index=df.index, dtype="float64")
-    iat_cv[~undefined_mask] = std[~undefined_mask] / mean[~undefined_mask]
-    iat_cv[undefined_mask] = -1.0  # sentinel: undefined, never occurs naturally
-    df["IAT_CV"] = iat_cv
-
-    n_undefined = int(undefined_mask.sum())
-    logger.info(
-        "IAT_CV computed for %s rows; %s rows set to sentinel -1 (Flow IAT Mean == 0)",
-        f"{len(df) - n_undefined:,}", f"{n_undefined:,}",
-    )
-    return df
-
-
-def reproduce_split(df: pd.DataFrame):
-    """
-    Reproduce the EXACT train/test split used by heuristic_baseline.py:
-        train_test_split(df, test_size=0.20, stratify=df['Label'], random_state=42)
-
-    This identical split is what makes "RF beat the heuristic baseline" a
-    valid claim to an evaluator -- both models are scored on the same rows.
-    """
-    logger.info("Reproducing 80/20 stratified split (random_state=%d)", RANDOM_STATE)
-    train_df, test_df = train_test_split(
-        df,
-        test_size=TEST_SIZE,
-        stratify=df[LABEL_COL],
+    # Step A: Train (70%) vs Temp (30% = Val + Test)
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X, y,
+        train_size=TRAIN_SIZE,
+        stratify=y,
         random_state=RANDOM_STATE,
     )
-    logger.info("Train: %s rows | Test: %s rows", f"{len(train_df):,}", f"{len(test_df):,}")
 
-    logger.info("Test-split label breakdown:")
-    for label, count in test_df[LABEL_COL].value_counts().items():
-        logger.info("  %-10s %10s rows (%.4f%%)", label, f"{count:,}", 100 * count / len(test_df))
-
-    feature_cols = [c for c in df.columns if c != LABEL_COL]
-    X_train, y_train = train_df[feature_cols], train_df[LABEL_COL]
-    X_test, y_test = test_df[feature_cols], test_df[LABEL_COL]
-    return X_train, X_test, y_train, y_test, feature_cols
-
-
-def train_random_forest(X_train, y_train) -> RandomForestClassifier:
-    """
-    Train on RAW (non-log1p) feature values -- RF splits on threshold
-    comparisons, so it's invariant to monotonic transforms like log1p.
-    (Isolation Forest needs log1p; RF explicitly does not -- Decision #6.)
-
-    CHANGE 2 (v2): class_weight is now the explicit dict CLASS_WEIGHTS
-    instead of the string 'balanced'. 'balanced' auto-computes weights
-    inversely proportional to class frequency -- for Bot (0.09% of rows)
-    that works out to a very large automatic weight, which v1's results
-    suggest already pushed hard on Bot's recall (0.7738) but at a real cost
-    to Bot's precision (0.4574, i.e. more than half of "Bot" alerts were
-    false alarms). CLASS_WEIGHTS applies a smaller, deliberately chosen
-    weight (15) to Bot only, leaving BENIGN/PortScan/DDoS at 1 so their
-    already near-perfect v1 scores aren't disturbed.
-    """
-    logger.info("Training RandomForestClassifier with explicit class_weight=%s", CLASS_WEIGHTS)
-    model = RandomForestClassifier(
-        n_estimators=300,
-        class_weight=CLASS_WEIGHTS,
+    # Step B: split Temp 50/50 -> Val (15% of full) / Test (15% of full)
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp,
+        test_size=0.5,
+        stratify=y_temp,
         random_state=RANDOM_STATE,
-        n_jobs=-1,
     )
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def print_split_balance(y_train: pd.Series, y_val: pd.Series, y_test: pd.Series) -> None:
+    """Proves the split is stratified correctly — every class, especially
+    the 0.088%-prevalence Bots class, should show near-identical
+    percentages across all three sets."""
+    total = len(y_train) + len(y_val) + len(y_test)
+
+    table = pd.DataFrame({
+        "train_count": y_train.value_counts(),
+        "val_count": y_val.value_counts(),
+        "test_count": y_test.value_counts(),
+    })
+    table["train_pct"] = (y_train.value_counts(normalize=True) * 100).round(4)
+    table["val_pct"] = (y_val.value_counts(normalize=True) * 100).round(4)
+    table["test_pct"] = (y_test.value_counts(normalize=True) * 100).round(4)
+    table = table[["train_count", "train_pct", "val_count", "val_pct", "test_count", "test_pct"]]
+    table = table.sort_values("train_count", ascending=False)
+
+    print("\n=== Three-Way Split — Row Counts & Class Balance ===")
+    print(f"Total rows: {total:,}  |  "
+          f"Train: {len(y_train):,} ({len(y_train)/total*100:.2f}%)  |  "
+          f"Val: {len(y_val):,} ({len(y_val)/total*100:.2f}%)  |  "
+          f"Test: {len(y_test):,} ({len(y_test)/total*100:.2f}%)")
+    print(table.to_string())
+
+
+# --------------------------------------------------------------------------
+# Step 2 — Train + overfitting check via Train-vs-Validation comparison
+# --------------------------------------------------------------------------
+
+def train_and_check_overfitting(X_train, y_train, X_val, y_val) -> RandomForestClassifier:
+    print(f"\n[INFO] Training RandomForestClassifier on {len(X_train):,} rows "
+          f"with params: {RF_PARAMS}")
+
+    # NOTE on hyperparameter tuning: a full GridSearchCV/RandomizedSearchCV
+    # over this parameter space is deliberately NOT run here by default —
+    # on a 2.2M-row training fold, a k-fold grid search multiplies training
+    # time by (folds x candidates), which turns a ~1-2 minute fit into a
+    # multi-hour job. Instead, this script fits once and uses the
+    # Train-vs-Validation gap below as the tuning signal: if the gap is
+    # large, tighten max_depth/min_samples_leaf and re-run; if it's small,
+    # the current settings are not overfitting and you can stop here or
+    # spend compute on a narrow search around them. A minimal starter grid
+    # is left commented out for when you do have the budget:
+    #
+    # from sklearn.model_selection import GridSearchCV
+    # param_grid = {"max_depth": [15, 20, 25], "min_samples_leaf": [2, 5, 10]}
+    # search = GridSearchCV(RandomForestClassifier(class_weight="balanced",
+    #                        n_jobs=-1, random_state=RANDOM_STATE),
+    #                        param_grid, scoring="f1_macro", cv=3, n_jobs=-1)
+    # search.fit(X_train, y_train)
+    # model = search.best_estimator_
+
+    start = time.time()
+    model = RandomForestClassifier(**RF_PARAMS)
     model.fit(X_train, y_train)
-    logger.info("Training complete: %d trees, %d input features", model.n_estimators, model.n_features_in_)
+    print(f"[INFO] Training completed in {time.time() - start:.1f}s.")
+
+    train_pred = model.predict(X_train)
+    val_pred = model.predict(X_val)
+
+    train_acc = accuracy_score(y_train, train_pred)
+    val_acc = accuracy_score(y_val, val_pred)
+    train_f1 = f1_score(y_train, train_pred, average="macro")
+    val_f1 = f1_score(y_val, val_pred, average="macro")
+
+    print("\n=== Train vs. Validation — Overfitting Check ===")
+    print(f"{'Metric':<20}{'Train':>12}{'Validation':>14}{'Gap':>10}")
+    print(f"{'Accuracy':<20}{train_acc:>12.4f}{val_acc:>14.4f}{train_acc - val_acc:>10.4f}")
+    print(f"{'Macro F1-Score':<20}{train_f1:>12.4f}{val_f1:>14.4f}{train_f1 - val_f1:>10.4f}")
+
+    gap = train_f1 - val_f1
+    if gap > OVERFIT_GAP_THRESHOLD:
+        print(f"[WARNING] Train/Validation macro-F1 gap ({gap:.4f}) exceeds the "
+              f"{OVERFIT_GAP_THRESHOLD} threshold — the model is likely overfitting "
+              f"the training fold. Consider lowering max_depth, raising "
+              f"min_samples_leaf, or reducing n_estimators.")
+    else:
+        print(f"[INFO] Train/Validation macro-F1 gap ({gap:.4f}) is within the "
+              f"{OVERFIT_GAP_THRESHOLD} threshold — no strong overfitting signal.")
+
+    # Validation-set detail, with the Bots row called out specifically
+    # since it's the class most likely to be memorized rather than learned.
+    val_report = classification_report(y_val, val_pred, output_dict=True, zero_division=0)
+    if "Bots" in val_report:
+        b = val_report["Bots"]
+        print(f"[INFO] Validation — Bots class: precision={b['precision']:.4f}, "
+              f"recall={b['recall']:.4f}, f1={b['f1-score']:.4f}, support={int(b['support'])}")
+
     return model
 
 
-def evaluate_model(model, X_test, y_test):
-    """Score the trained model on the held-out test split, same metrics as the heuristic baseline."""
-    logger.info("Scoring on test split")
-    y_pred = model.predict(X_test)
+# --------------------------------------------------------------------------
+# Step 3 — Final, single-pass evaluation on the untouched Test set
+# --------------------------------------------------------------------------
 
-    accuracy = accuracy_score(y_test, y_pred)
-    precision, recall, f1, support = precision_recall_fscore_support(
-        y_test, y_pred, labels=CLASS_ORDER, zero_division=0
-    )
-    cm = confusion_matrix(y_test, y_pred, labels=CLASS_ORDER)
+def evaluate_on_test(model: RandomForestClassifier, X_test, y_test) -> None:
+    print("\n" + "=" * 70)
+    print("FINAL TEST SET EVALUATION (untouched — first and only use)")
+    print("=" * 70)
 
-    # BENIGN false-positive rate = actual-BENIGN rows predicted as anything
-    # else, divided by all actual-BENIGN rows. Same definition used in
-    # heuristic_baseline_metrics.md -> the two numbers are directly comparable.
-    benign_idx = CLASS_ORDER.index("BENIGN")
-    benign_row = cm[benign_idx]
-    benign_total = int(benign_row.sum())
-    benign_fp = benign_total - int(benign_row[benign_idx])
-    benign_fpr = benign_fp / benign_total if benign_total else 0.0
+    test_pred = model.predict(X_test)
+    class_labels = sorted(y_test.unique())
 
-    logger.info("Accuracy: %.4f", accuracy)
-    logger.info("BENIGN false-positive rate: %.4f%%", benign_fpr * 100)
-    for i, label in enumerate(CLASS_ORDER):
-        logger.info(
-            "  %-10s precision=%.4f recall=%.4f f1=%.4f support=%d",
-            label, precision[i], recall[i], f1[i], support[i],
-        )
+    print("\n--- Classification Report ---")
+    report_str = classification_report(y_test, test_pred, digits=4, zero_division=0)
+    print(report_str)
 
-    return {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "support": support,
-        "confusion_matrix": cm,
-        "benign_fpr": benign_fpr,
-    }
+    report_dict = classification_report(y_test, test_pred, output_dict=True, zero_division=0)
+    if "Bots" in report_dict:
+        b = report_dict["Bots"]
+        print(f">>> Bots (0.088% of data) on Test — precision={b['precision']:.4f}, "
+              f"recall={b['recall']:.4f}, f1={b['f1-score']:.4f}, "
+              f"support={int(b['support'])} rows")
+
+    print("\n--- Labeled Confusion Matrix (rows = actual, columns = predicted) ---")
+    cm = confusion_matrix(y_test, test_pred, labels=class_labels)
+    cm_df = pd.DataFrame(cm, index=[f"actual_{c}" for c in class_labels],
+                          columns=[f"pred_{c}" for c in class_labels])
+    print(cm_df.to_string())
+
+    print("\n--- Ranked Feature Importance ---")
+    importances = pd.Series(model.feature_importances_, index=X_test.columns)
+    importances = importances.sort_values(ascending=False)
+    importance_pct = (importances / importances.sum() * 100).round(2)
+    imp_table = pd.DataFrame({"importance": importances.round(4), "importance_pct": importance_pct})
+    print(imp_table.to_string())
 
 
-def get_top_features(model, feature_cols, top_n: int = 5):
-    """
-    Global feature importances (Gini importance), sorted descending.
+# --------------------------------------------------------------------------
+# Step 4 — Serialization
+# --------------------------------------------------------------------------
 
-    IMPORTANT DISTINCTION for the write-up: this is model-level "which
-    features matter overall" -- it is NOT the same as the frozen Inference
-    Response contract's per-flow `top_features` field, which must name the
-    2 features that drove ONE specific prediction. That needs a per-sample
-    explanation method (per-tree decision path, or SHAP), not
-    .feature_importances_. Flag this gap before wiring the real inference
-    service on Day 6.
-    """
-    importances = model.feature_importances_
-    ranked = sorted(zip(feature_cols, importances), key=lambda x: x[1], reverse=True)
-    logger.info("Top %d global feature importances:", top_n)
-    for name, score in ranked[:top_n]:
-        logger.info("  %-25s %.4f", name, score)
-    return ranked
+def save_model(model: RandomForestClassifier, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, path)
+    size_mb = path.stat().st_size / (1024 * 1024)
+    print(f"\n[INFO] Model saved to '{path}' ({size_mb:.2f} MB).")
 
 
-def write_metrics_report(output_path: Path, split_sizes, model, metrics, ranked_features, feature_cols):
-    """Write a markdown report in the same format as heuristic_baseline_metrics.md,
-    plus a Run Configuration block and an explicit v1-vs-v2 comparison so the
-    improvement (or regression) from each change is visible without manually
-    diffing two separate files."""
-    lines = []
-    lines.append("# Random Forest v2 — PS26145\n")
-
-    lines.append("## Changes vs. v1 (docs/random_forest_metrics.md)")
-    lines.append("1. **Added engineered feature `IAT_CV`** = Flow IAT Std / Flow IAT Mean "
-                  "(periodicity signal, same ratio the heuristic Bot rule used).")
-    lines.append(f"2. **class_weight changed** from `'balanced'` to explicit dict `{CLASS_WEIGHTS}`.\n")
-
-    lines.append("## Split")
-    lines.append(f"- 80% train / 20% test, stratified by Label, random_state={RANDOM_STATE}")
-    lines.append(f"- Train rows: {split_sizes[0]:,} | Test rows: {split_sizes[1]:,}\n")
-
-    lines.append("## Model / Run configuration")
-    lines.append(
-        f"- RandomForestClassifier, n_estimators={model.n_estimators}, "
-        f"class_weight={CLASS_WEIGHTS}, random_state={RANDOM_STATE}"
-    )
-    lines.append("- Trained on raw (non-log1p) feature values")
-    lines.append(f"- Feature columns ({len(feature_cols)}): {', '.join(feature_cols)}")
-    lines.append("  (`IAT_CV` is the new engineered feature — not present in the v1 run)\n")
-
-    lines.append("## Before / After comparison (v1 → v2)")
-    lines.append("| Metric | v1 | v2 | Change |")
-    lines.append("|---|---|---|---|")
-    acc_delta = metrics["accuracy"] - V1_RESULTS["accuracy"]
-    fpr_delta = (metrics["benign_fpr"] - V1_RESULTS["benign_fpr"]) * 100
-    lines.append(f"| Overall accuracy | {V1_RESULTS['accuracy']:.4f} | {metrics['accuracy']:.4f} | "
-                 f"{acc_delta:+.4f} |")
-    lines.append(f"| BENIGN false-positive rate | {V1_RESULTS['benign_fpr']*100:.4f}% | "
-                 f"{metrics['benign_fpr']*100:.4f}% | {fpr_delta:+.4f} pp |")
-    for i, label in enumerate(CLASS_ORDER):
-        v1c = V1_RESULTS["per_class"][label]
-        lines.append(f"| {label} — Precision | {v1c['precision']:.4f} | {metrics['precision'][i]:.4f} | "
-                     f"{metrics['precision'][i]-v1c['precision']:+.4f} |")
-        lines.append(f"| {label} — Recall | {v1c['recall']:.4f} | {metrics['recall'][i]:.4f} | "
-                     f"{metrics['recall'][i]-v1c['recall']:+.4f} |")
-        lines.append(f"| {label} — F1 | {v1c['f1']:.4f} | {metrics['f1'][i]:.4f} | "
-                     f"{metrics['f1'][i]-v1c['f1']:+.4f} |")
-    lines.append(
-        "\n> Positive Change = improvement for Precision/Recall/F1/Accuracy. "
-        "Positive Change on BENIGN FPR = MORE false positives (worse).\n"
-    )
-
-    lines.append("## Test-set metrics (v2, full detail)")
-    lines.append("| Label | Precision | Recall | F1 | Support |")
-    lines.append("|---|---|---|---|---|")
-    for i, label in enumerate(CLASS_ORDER):
-        lines.append(
-            f"| {label} | {metrics['precision'][i]:.4f} | {metrics['recall'][i]:.4f} | "
-            f"{metrics['f1'][i]:.4f} | {metrics['support'][i]} |"
-        )
-    lines.append(f"\n**Overall accuracy:** {metrics['accuracy']:.4f}\n")
-    lines.append(f"**BENIGN false-positive rate:** {metrics['benign_fpr'] * 100:.4f}%\n")
-
-    lines.append("## Confusion matrix (rows = actual, columns = predicted)")
-    lines.append("| | " + " | ".join(CLASS_ORDER) + " |")
-    lines.append("|---" * (len(CLASS_ORDER) + 1) + "|")
-    cm = metrics["confusion_matrix"]
-    for i, label in enumerate(CLASS_ORDER):
-        lines.append(f"| {label} | " + " | ".join(str(v) for v in cm[i]) + " |")
-
-    lines.append("\n## Top global feature importances (Gini)")
-    lines.append("| Feature | Importance |")
-    lines.append("|---|---|")
-    for name, score in ranked_features:
-        lines.append(f"| {name} | {score:.4f} |")
-    lines.append(
-        "\n> Note: these are GLOBAL importances, not the per-flow `top_features` "
-        "required by the frozen Inference Response contract — see the docstring "
-        "in `get_top_features()`."
-    )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines), encoding="utf-8")
-    logger.info("Metrics report written to %s", output_path)
-
+# --------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Random Forest v2 for PS26145 Tier-1 threat classification")
-    parser.add_argument("--input", type=Path, default=Path("data/processed/cicids2017_12_features_cleaned.csv"))
-    # Default filename deliberately differs from v1's docs/random_forest_metrics.md
-    # so the original report is never overwritten -- both stay on disk for diffing.
-    parser.add_argument("--output-metrics", type=Path, default=Path("docs/random_forest_metrics_v2.md"))
-    args = parser.parse_args()
+    df = load_data(INPUT_PATH)
+    X_train, X_val, X_test, y_train, y_val, y_test = three_way_split(df)
+    print_split_balance(y_train, y_val, y_test)
 
-    df = load_data(args.input)
-    df = add_engineered_features(df)  # CHANGE 1: adds IAT_CV column
-    X_train, X_test, y_train, y_test, feature_cols = reproduce_split(df)
-    model = train_random_forest(X_train, y_train)  # CHANGE 2: explicit CLASS_WEIGHTS used inside
-    metrics = evaluate_model(model, X_test, y_test)
-    ranked_features = get_top_features(model, feature_cols)
-    write_metrics_report(
-        args.output_metrics, (len(X_train), len(X_test)), model, metrics, ranked_features, feature_cols
-    )
-
-    logger.info("Done.")
+    model = train_and_check_overfitting(X_train, y_train, X_val, y_val)
+    evaluate_on_test(model, X_test, y_test)
+    save_model(model, MODEL_PATH)
 
 
 if __name__ == "__main__":
