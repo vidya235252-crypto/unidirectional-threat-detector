@@ -6,7 +6,7 @@ from app.core.flow_engine import Flow, FlowEngine
 from app.core.feature_engine import FeatureEngine
 from app.core.config import FEATURE_WINDOW_SECONDS, ALERT_DEDUP_WINDOW_SECONDS
 from app.contracts.feature_vector import FeatureVector
-from app.inference.mock_inference import classify
+from app.inference.inference_client import classify
 from app.core.alert_engine import AlertEngine, Alert
 from app.core.dedup import Deduplicator
 

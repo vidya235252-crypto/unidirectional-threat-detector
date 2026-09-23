@@ -3,6 +3,7 @@ from pathlib import Path
 BACKEND_ROOT: Path = Path(__file__).resolve().parents[2]
 DATA_DIR: Path = BACKEND_ROOT.parent / "data"
 SCENARIOS_DIR: Path = DATA_DIR / "scenarios"
+MODELS_DIR: Path = BACKEND_ROOT.parent / "models"
 DB_PATH: Path = BACKEND_ROOT / "app" / "db" / "alerts.db"
 
 FEATURE_WINDOW_SECONDS: float = 5.0

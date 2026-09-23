@@ -58,8 +58,10 @@ class FeatureEngine:
 
         packets_per_second = packet_count / duration_seconds if duration_seconds > 0 else 0.0
         avg_packet_size = byte_count / packet_count if packet_count > 0 else 0.0
+        flow_bytes_per_second = byte_count / duration_seconds if duration_seconds > 0 else 0.0
         iat_mean, iat_std = self._inter_arrival_stats(flow)
         syn_count = sum(1 for p in flow.packets if p.syn_flag)
+        fwd_packet_length_min = min((p.packet_size for p in flow.packets), default=0)
 
         return FeatureVector(
             flow_id=self._next_flow_id(),
@@ -75,5 +77,8 @@ class FeatureEngine:
             unique_dest_ports=unique_dest_ports,
             protocol=flow.protocol,
             syn_count=syn_count,
+            dst_port=flow.dst_port,
+            flow_bytes_per_second=flow_bytes_per_second,
+            fwd_packet_length_min=fwd_packet_length_min,
         )
     

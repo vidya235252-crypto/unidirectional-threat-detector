@@ -21,6 +21,9 @@ class FeatureVector(BaseModel):
     unique_dest_ports: int = Field(ge=0)
     protocol: Protocol
     syn_count: int = Field(ge=0)
+    dst_port: int = Field(ge=0, le=65535)
+    flow_bytes_per_second: float = Field(ge=0)
+    fwd_packet_length_min: int = Field(ge=0)
 
     model_config = {
         "json_schema_extra": {
@@ -37,7 +40,10 @@ class FeatureVector(BaseModel):
                 "unique_destinations": 1,
                 "unique_dest_ports": 3,
                 "protocol": "TCP",
-                "syn_count": 1
+                "syn_count": 1,
+                "dst_port": 443,
+                "flow_bytes_per_second": 1646.8,
+                "fwd_packet_length_min": 60
             }
         }
     }

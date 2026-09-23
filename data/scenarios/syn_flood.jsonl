@@ -1,0 +1,4 @@
+{"timestamp": "2026-09-11T10:00:00Z", "src_ip": "172.16.0.50", "dst_ip": "10.0.0.20", "src_port": 44444, "dst_port": 80, "protocol": "TCP", "packet_size": 6, "syn_flag": true}
+{"timestamp": "2026-09-11T10:00:00.100000Z", "src_ip": "172.16.0.50", "dst_ip": "10.0.0.20", "src_port": 44444, "dst_port": 80, "protocol": "TCP", "packet_size": 6, "syn_flag": true}
+{"timestamp": "2026-09-11T10:00:00.200000Z", "src_ip": "172.16.0.50", "dst_ip": "10.0.0.20", "src_port": 44444, "dst_port": 80, "protocol": "TCP", "packet_size": 7, "syn_flag": true}
+{"timestamp": "2026-09-11T10:00:01.878800Z", "src_ip": "172.16.0.50", "dst_ip": "10.0.0.20", "src_port": 44444, "dst_port": 80, "protocol": "TCP", "packet_size": 7, "syn_flag": true}
