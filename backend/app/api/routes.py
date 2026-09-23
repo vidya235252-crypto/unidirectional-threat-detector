@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.core import config
 from app.db import database
-from app.pipeline.orchestrator import run_scenario_full
+from app.pipeline.orchestrator import stream_scenario
 from app.api.ws_manager import manager
 
 router = APIRouter()
@@ -43,9 +43,10 @@ def _alert_to_dict(alert) -> dict:
 async def _stream_scenario(name: str) -> None:
     global _current_scenario
     path = _scenario_path(name)
-    pairs, alerts = run_scenario_full(path)
 
-    for flow, fv in pairs:
+    await manager.broadcast({"type": "scenario_started", "scenario": name})
+
+    for flow, fv, alert in stream_scenario(path):
         database.insert_flow(
             flow_id=fv.flow_id,
             timestamp=fv.timestamp,
@@ -59,22 +60,20 @@ async def _stream_scenario(name: str) -> None:
             byte_count=fv.byte_count,
         )
 
-    await manager.broadcast({"type": "scenario_started", "scenario": name})
-
-    for alert in alerts:
-        database.insert_alert(
-            alert_id=alert.alert_id,
-            timestamp=alert.timestamp,
-            flow_id=alert.flow_id,
-            threat_class=alert.threat_class,
-            severity=alert.severity,
-            confidence=alert.confidence,
-            anomaly_score=alert.anomaly_score,
-            evidence=alert.evidence,
-            model_version=alert.model_version,
-        )
-        await manager.broadcast({"type": "alert", "alert": _alert_to_dict(alert)})
-        await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
+        if alert is not None:
+            database.insert_alert(
+                alert_id=alert.alert_id,
+                timestamp=alert.timestamp,
+                flow_id=alert.flow_id,
+                threat_class=alert.threat_class,
+                severity=alert.severity,
+                confidence=alert.confidence,
+                anomaly_score=alert.anomaly_score,
+                evidence=alert.evidence,
+                model_version=alert.model_version,
+            )
+            await manager.broadcast({"type": "alert", "alert": _alert_to_dict(alert)})
+            await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
 
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
     _current_scenario = None

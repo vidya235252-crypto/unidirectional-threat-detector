@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from app.ingestion.scenario_loader import ScenarioLoader
 from app.core.flow_engine import Flow, FlowEngine
@@ -10,49 +10,53 @@ from app.inference.inference_client import classify
 from app.core.alert_engine import AlertEngine, Alert
 from app.core.dedup import Deduplicator
 
+StreamItem = Tuple[Flow, FeatureVector, Optional[Alert]]
 
-def _run_pipeline(scenario_path: Path) -> List[Tuple[Flow, FeatureVector]]:
+
+def stream_scenario(scenario_path: Path) -> Iterator[StreamItem]:
+    """True streaming pipeline: classifies and alerts on each flow the
+    instant it closes (via inactivity timeout), not after the whole file
+    has been read. For a continuous live feed this means bounded per-flow
+    latency instead of waiting for end-of-stream."""
     loader = ScenarioLoader(scenario_path)
     flow_engine = FlowEngine()
     feature_engine = FeatureEngine()
-
-    closed_flows: List[Flow] = []
-
-    for packet in loader.load():
-        flow_engine.process_packet(packet)
-        stale = flow_engine.get_stale_flows(packet.timestamp, FEATURE_WINDOW_SECONDS)
-        closed_flows.extend(stale)
-
-    closed_flows.extend(flow_engine.flush_all())
-
-    vectors = feature_engine.compute_batch(closed_flows)
-
-    return list(zip(closed_flows, vectors))
-
-
-def run_scenario(scenario_path: Path) -> List[FeatureVector]:
-    pairs = _run_pipeline(scenario_path)
-    return [vector for _, vector in pairs]
-
-
-def run_scenario_full(scenario_path: Path) -> Tuple[List[Tuple[Flow, FeatureVector]], List[Alert]]:
-    pairs = _run_pipeline(scenario_path)
-
     alert_engine = AlertEngine()
     dedup = Deduplicator(window_seconds=ALERT_DEDUP_WINDOW_SECONDS)
 
-    for flow, fv in pairs:
+    def _process(flow: Flow) -> StreamItem:
+        fv = feature_engine.compute_incremental(flow)
         response = classify(fv)
 
-        if response.threat_class.value == "BENIGN":
-            continue
+        alert: Optional[Alert] = None
+        if response.threat_class.value != "BENIGN" and not dedup.should_suppress(
+            flow.src_ip, response.threat_class.value
+        ):
+            alert = alert_engine.process(fv, response)
 
-        if dedup.should_suppress(flow.src_ip, response.threat_class.value):
-            continue
+        return flow, fv, alert
 
-        alert_engine.process(fv, response)
+    for packet in loader.load():
+        flow_engine.process_packet(packet)
+        for stale_flow in flow_engine.get_stale_flows(packet.timestamp, FEATURE_WINDOW_SECONDS):
+            yield _process(stale_flow)
 
-    return pairs, alert_engine.all_alerts()
+    for flow in flow_engine.flush_all():
+        yield _process(flow)
+
+
+def run_scenario(scenario_path: Path) -> List[FeatureVector]:
+    return [fv for _, fv, _ in stream_scenario(scenario_path)]
+
+
+def run_scenario_full(scenario_path: Path) -> Tuple[List[Tuple[Flow, FeatureVector]], List[Alert]]:
+    pairs: List[Tuple[Flow, FeatureVector]] = []
+    alerts: List[Alert] = []
+    for flow, fv, alert in stream_scenario(scenario_path):
+        pairs.append((flow, fv))
+        if alert is not None:
+            alerts.append(alert)
+    return pairs, alerts
 
 
 def run_scenario_with_alerts(scenario_path: Path) -> List[Alert]:

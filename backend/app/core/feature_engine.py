@@ -11,6 +11,8 @@ class FeatureEngine:
     def __init__(self):
         self._run_prefix = uuid.uuid4().hex[:8]
         self._counter = 0
+        self._dest_ip_sets = defaultdict(set)
+        self._dest_port_sets = defaultdict(set)
 
     def _next_flow_id(self) -> str:
         self._counter += 1
@@ -28,6 +30,20 @@ class FeatureEngine:
         mean = statistics.mean(deltas_us)
         std = statistics.stdev(deltas_us) if len(deltas_us) >= 2 else 0.0
         return mean, std
+
+    def compute_incremental(self, flow: Flow) -> FeatureVector:
+        """Streaming variant: updates running per-src_ip cross-flow state with
+        this one flow, then extracts using the state as it stands right now.
+        Call once per flow, in the order flows close. Unlike compute_batch,
+        this never looks ahead at flows that haven't closed yet — matches how
+        a real online detector has to work."""
+        self._dest_ip_sets[flow.src_ip].add(flow.dst_ip)
+        self._dest_port_sets[flow.src_ip].add(flow.dst_port)
+        return self._extract_single(
+            flow,
+            unique_destinations=len(self._dest_ip_sets[flow.src_ip]),
+            unique_dest_ports=len(self._dest_port_sets[flow.src_ip]),
+        )
 
     def compute_batch(self, flows: List[Flow]) -> List[FeatureVector]:
         dest_ip_sets = defaultdict(set)

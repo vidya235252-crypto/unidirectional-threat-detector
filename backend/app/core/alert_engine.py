@@ -22,6 +22,8 @@ class Alert:
 
 
 def compute_severity(response: InferenceResponse) -> str:
+    if response.threat_class.value == "PORT_SCAN":
+        return "HIGH"
     if response.confidence >= 0.9:
         return "HIGH"
     if response.confidence >= 0.7:
