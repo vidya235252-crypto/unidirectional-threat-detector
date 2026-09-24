@@ -1,7 +1,6 @@
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
 from typing import Optional
 
 _SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts")
@@ -32,7 +31,7 @@ def classify_dns_record(domain: str, query_type: str, timestamp: str, src_ip: st
     )
     return Alert(
         alert_id=str(uuid.uuid4()),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=timestamp,
         flow_id=flow_id,
         threat_class=response.threat_class.value,
         severity=compute_severity(response),
@@ -69,7 +68,7 @@ def classify_tls_record(
     )
     return Alert(
         alert_id=str(uuid.uuid4()),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=timestamp,
         flow_id=flow_id,
         threat_class=response.threat_class.value,
         severity=compute_severity(response),

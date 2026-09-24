@@ -45,19 +45,19 @@ class FeatureEngine:
             unique_dest_ports=len(self._dest_port_sets[flow.src_ip]),
         )
 
-        def compute_one(
+    def compute_one(
         self,
         flow: Flow,
         unique_destinations: int,
         unique_dest_ports: int,
     ) -> FeatureVector:
-            """
-            Convert one completed flow into a model-ready feature vector.
+        """
+        Convert one completed flow into a model-ready feature vector.
 
-            Destination cardinality values are supplied by the streaming
-            orchestrator so feature extraction does not require the entire
-            scenario to be loaded first.
-            """
+        Destination cardinality values are supplied by the streaming
+        orchestrator so feature extraction does not require the entire
+        scenario to be loaded first.
+        """
         return self._extract_single(
             flow,
             unique_destinations=unique_destinations,

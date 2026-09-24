@@ -1,6 +1,5 @@
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Optional
 
 from app.contracts.feature_vector import FeatureVector
@@ -44,7 +43,7 @@ class AlertEngine:
         evidence = generate_evidence(fv, response)
         alert = Alert(
             alert_id=str(uuid.uuid4()),
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=fv.timestamp,
             flow_id=response.flow_id,
             threat_class=response.threat_class.value,
             severity=compute_severity(response),

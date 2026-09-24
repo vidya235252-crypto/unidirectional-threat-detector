@@ -49,6 +49,31 @@ def _build_row(fv: FeatureVector) -> np.ndarray:
     ]])
 
 
+_IF_LOG1P_INDICES = [1, 2, 3, 4, 5, 6, 7]
+
+
+def _build_iforest_row(row: np.ndarray) -> np.ndarray:
+    """
+    Apply the preprocessing used when the Isolation Forest was trained.
+
+    The Random Forest receives the raw feature vector.
+    Isolation Forest receives log1p-transformed values for:
+      Flow Duration
+      Total Fwd Packets
+      Total Length of Fwd Packets
+      Flow Bytes/s
+      Fwd Packets/s
+      Flow IAT Mean
+      Flow IAT Std
+    """
+    transformed = row.copy()
+
+    for idx in _IF_LOG1P_INDICES:
+        transformed[:, idx] = np.log1p(np.clip(transformed[:, idx], 0, None))
+
+    return transformed
+
+
 def _normalize_anomaly_score(raw_score: float) -> float:
     x = (_IF_THRESHOLD - raw_score) / _IF_SIGMOID_SCALE
     return 1.0 / (1.0 + math.exp(-x))
@@ -71,12 +96,19 @@ def classify(fv: FeatureVector) -> InferenceResponse:
         warnings.simplefilter("ignore", category=UserWarning)
         rf_label = _rf_model.predict(row)[0]
         rf_proba = _rf_model.predict_proba(row)[0]
-        raw_anomaly = _if_model.score_samples(row)[0]
+
+        if_row = _build_iforest_row(row)
+        raw_anomaly = _if_model.score_samples(if_row)[0]
 
     confidence = float(max(rf_proba))
     anomaly_score = _normalize_anomaly_score(raw_anomaly)
 
     threat_class = _CLASS_MAP.get(rf_label, ThreatClass.BENIGN)
+
+    # Isolation Forest gates C2/Bots predictions.
+    # DDoS and Port Scanning are accepted directly from the RF.
+    if rf_label == "Bots" and raw_anomaly > _IF_THRESHOLD:
+        threat_class = ThreatClass.BENIGN
 
     top_idx = _rf_model.feature_importances_.argsort()[::-1][:2]
     top_features = [_FEATURE_ORDER[i] for i in top_idx]
