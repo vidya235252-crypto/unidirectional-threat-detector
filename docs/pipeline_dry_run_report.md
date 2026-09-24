@@ -280,31 +280,79 @@ This is the exact mechanism that turns four independently-computed branch output
 
 ---
 
-## 8. Measured throughput (held-out test data, single run — see methodology note below)
+## 8. Measured throughput
 
-| Stage | p50 latency | p99 latency | Throughput |
-|---|---|---|---|
-| RF (single-flow, no batching) | ~20–80ms* | ~90–100ms* | ~10–40 flows/sec* |
-| RF (micro-batched, 50/batch) | 525.7µs/row | 1893.6µs/row | **1,329.7 flows/sec** |
-| IForest (single-flow) | ~15–55ms* | ~65–70ms* | ~18–35 flows/sec* |
-| IForest (micro-batched, 50/batch) | 351.8µs/row | 1299.7µs/row | **1,990.1 flows/sec** |
-| DGA/DNS | 6.9µs | 43.9µs | **77,305.6 flows/sec** |
-| JA3 | 1.5µs | 10.3µs | **488,768.3 flows/sec** |
-| Behavioral/Exfil | 3.6µs | 6.0µs | **260,854.2 flows/sec** |
-| **End-to-end (DNS+JA3+Behavioral+fusion, per flow)** | **0.30ms** | **0.77ms** | **2,714.9 flows/sec** |
+The current production streaming flow is benchmarked through the same
+`stream_scenario()` path used by the backend:
 
-*Single-flow RF/IForest numbers vary run-to-run with machine load — rerun once on an idle system before finalizing for submission.
+ScenarioLoader → FlowEngine → FeatureEngine → Behavioral/Exfiltration
+detector → Random Forest / Isolation Forest inference → Deduplication →
+AlertEngine.
 
-**On the end-to-end number specifically:** 300µs p50 is noticeably higher than the sum of the three individual branch p50s (6.9 + 1.5 + 3.6 ≈ 12µs). The gap is fusion-engine bookkeeping — `_register_signal()`'s window append/prune per branch call, dict construction for each payload — plus per-flow timestamp generation overhead, not a hidden bug in any single branch. Over a 3,000-flow held-out sample this run produced **324 alerts fired** (mix of LOW and HIGH, per the escalation rule in §6) and **0 near-misses** (no uncorroborated "Bots" RF calls occurred in this sample).
+The benchmark runs the current scenario streams repeatedly without the
+dashboard's artificial scenario playback delay.
 
-**Combined headline throughput for the report:** RF/IF batched ML stage (~1,330–1,990 flows/sec, the bottleneck) run in parallel with the ~2,715 flows/sec branch-fusion stage — since these are two separate stages in the actual architecture (batch ML inference feeding into per-flow fusion), the pipeline's realistic sustained throughput is bounded by the slower of the two: **~1,330 flows/sec (RF-bound)**, assuming both stages run in their own thread/process. Since the current code is fully sequential in one process (§8's architecture note), the conservative, defensible number to state is: micro-batched ML throughput and branch-fusion throughput measured and reported separately, with total single-process throughput ≈ combining both costs per batch of 50 flows.
+### End-to-end streaming benchmark
 
-**Why RF/IForest need batching and the other three don't:** `RandomForestClassifier.predict()` internally dispatches across all trees via joblib's `Parallel`/`delayed()` machinery on every call, regardless of `n_jobs`. That fixed dispatch overhead (~14.5ms on a similarly-sized forest, confirmed via direct reproduction) is paid once per call — batching 50 flows into one call amortizes it across 50 rows instead of paying it 50 times. DGA/JA3/Behavioral are plain Python (dict/set lookups, arithmetic) with no such dispatch machinery, so single-call timing already reflects true cost.
+| Scenario | Flows processed | Throughput |
+|---|---:|---:|
+| Benign | 100 | 10.6 flows/sec |
+| Port Scan | 4,000 | 45.4 flows/sec |
+| SYN Flood | 100 | 10.4 flows/sec |
+| C2 Beaconing | 100 | 10.6 flows/sec |
+| Data Exfiltration | 100 | 7,046.7 flows/sec |
+| **Aggregate** | **4,400** | **37.8 flows/sec** |
 
-**Architecture note for the report:** `SecurityAlertEngine` and all four branches currently run **sequentially, single-threaded** — the pipeline diagram's parallel arrows describe the conceptual data flow, not the current code's execution model. End-to-end throughput is therefore the *sum* of per-flow branch costs, not the max of the slowest branch. True multi-threaded/multi-process execution was evaluated and intentionally deferred: `SecurityAlertEngine._window`, `_last_escalation`, `near_misses`, `alert_log`, and DGA's module-level `_dns_window` are all unprotected shared state with no locking today — only `PerIPTracker` was built thread-safe. Introducing concurrency without auditing and locking all of the above risks duplicate HIGH alerts bypassing the cooldown and race conditions in the DNS tunneling window count.
+**Aggregate measured throughput: 37.8 flows/sec.**
+
+The benchmark is a single-process, sequential measurement of the current
+streaming implementation. The scenario files contain different numbers of
+flows, so the aggregate figure is weighted by the number of flows processed
+in each scenario. The port-scan scenario contributes the largest share of
+the measured workload with 4,000 flows.
+
+This measurement represents detector processing through the current
+streaming orchestrator and does not include the dashboard's artificial
+playback delay.
+
+### Component throughput
+
+The existing component benchmarks remain useful for understanding the
+relative cost of individual detection stages:
+
+- RF micro-batched inference: 1,329.7 flows/sec
+- Isolation Forest micro-batched inference: 1,990.1 flows/sec
+- DGA/DNS detector: 77,305.6 flows/sec
+- JA3 detector: 488,768.3 flows/sec
+- Behavioral/Exfiltration detector: 260,854.2 flows/sec
+
+These component measurements should not be presented as the end-to-end
+throughput of the current streaming pipeline.
 
 ---
 
-## 9. Known open risk — not yet resolved
+## 9. Current implementation status
 
-The live flow engine (teammate's side) currently emits an **11-field** schema — `Destination Port, Flow Duration, Total Fwd Packets, Total Backward Packets, Flow Bytes/s, Flow Packets/s, Flow IAT Mean, Flow IAT Std, SYN Flag Count, Average Packet Size, Down/Up Ratio` — which does not match this document's frozen 10-field schema field-for-field. **Nothing in §2–8 transfers to real traffic until this is reconciled.** This is the single highest-priority item blocking end-to-end demo readiness.
+The previous 11-field feature-vector mismatch described in this document
+is no longer the current state of the implementation.
+
+The current streaming pipeline uses the existing model-compatible feature
+construction and successfully exercises the production inference path for
+the flow scenarios.
+
+The current integrated scenario set is:
+
+- Benign
+- Port Scan
+- SYN Flood
+- C2 Beaconing
+- Data Exfiltration
+- DGA DNS Tunneling
+- Malicious TLS
+
+The flow scenarios use the streaming orchestrator, while DGA/DNS tunneling
+and malicious TLS are handled by their dedicated secondary detector
+pipelines.
+
+The current benchmark establishes a measured end-to-end flow-processing
+throughput of **37.8 flows/sec** for the tested workload.
