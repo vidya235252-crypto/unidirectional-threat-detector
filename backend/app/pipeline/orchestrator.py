@@ -8,7 +8,6 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from app.ingestion.scenario_loader import ScenarioLoader
 
-from app.ingestion.scenario_loader import ScenarioLoader
 from app.core.flow_engine import Flow, FlowEngine
 from app.core.feature_engine import FeatureEngine
 from app.core.config import FEATURE_WINDOW_SECONDS, ALERT_DEDUP_WINDOW_SECONDS

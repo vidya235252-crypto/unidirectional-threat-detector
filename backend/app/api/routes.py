@@ -12,7 +12,7 @@ from app.api.ws_manager import manager
 
 router = APIRouter()
 
-FLOW_SCENARIOS = ["benign", "port_scan", "syn_flood", "c2_beaconing","data_exfiltration"]
+FLOW_SCENARIOS = ["benign", "port_scan", "syn_flood", "c2_beaconing", "data_exfiltration"]
 DNS_SCENARIOS = ["dga_dns_tunneling"]
 TLS_SCENARIOS = ["malicious_tls"]
 SCENARIO_NAMES = FLOW_SCENARIOS + DNS_SCENARIOS + TLS_SCENARIOS

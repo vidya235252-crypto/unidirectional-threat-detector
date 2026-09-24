@@ -9,7 +9,7 @@ const SCENARIOS = [
   { key: "syn_flood", label: "SYN flood" },
   { key: "data_exfiltration", label: "Data exfiltration" },
   { key: "dga_dns_tunneling", label: "DGA DNS tunneling" },
-{ key: "malicious_tls", label: "Malicious TLS" },
+  { key: "malicious_tls", label: "Malicious TLS" },
 ];
 
 export function ScenarioControls({ currentScenario }) {
