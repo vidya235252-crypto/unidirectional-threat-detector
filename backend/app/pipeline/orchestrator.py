@@ -1,5 +1,12 @@
+import sys
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
+from datetime import datetime
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+from app.ingestion.scenario_loader import ScenarioLoader
 
 from app.ingestion.scenario_loader import ScenarioLoader
 from app.core.flow_engine import Flow, FlowEngine
@@ -12,6 +19,8 @@ from app.core.dedup import Deduplicator
 
 from app.contracts.dns_tls_events import DnsQueryRecord, TlsSessionRecord
 from app.inference.secondary_detectors import classify_dns_record, classify_tls_record
+from data_exfilteration_logic import PerIPTracker, classify_outbound_behavior
+from app.contracts.inference_response import InferenceResponse, ThreatClass
 
 StreamItem = Tuple[Flow, FeatureVector, Optional[Alert]]
 DnsStreamItem = Tuple[DnsQueryRecord, Optional[Alert]]
@@ -28,10 +37,30 @@ def stream_scenario(scenario_path: Path) -> Iterator[StreamItem]:
     feature_engine = FeatureEngine()
     alert_engine = AlertEngine()
     dedup = Deduplicator(window_seconds=ALERT_DEDUP_WINDOW_SECONDS)
+    exfil_tracker = PerIPTracker()
 
     def _process(flow: Flow) -> StreamItem:
         fv = feature_engine.compute_incremental(flow)
-        response = classify(fv)
+        exfil_signal = classify_outbound_behavior(
+            exfil_tracker,
+            flow.src_ip,
+            datetime.fromisoformat(fv.timestamp).timestamp(),
+            fv.byte_count,
+            fv.flow_duration,
+            fv.packets_per_second,
+            flow.dst_ip,
+        )
+        if exfil_signal["alert_triggered"]:
+            response = InferenceResponse(
+                flow_id=fv.flow_id,
+                threat_class=ThreatClass.DATA_EXFILTRATION,
+                confidence=1.0,
+                anomaly_score=1.0,
+                top_features=["outbound_behavior"],
+                model_version="exfil-behavior-v1",
+            )
+        else:
+            response = classify(fv)
 
         alert: Optional[Alert] = None
         if response.threat_class.value != "BENIGN" and not dedup.should_suppress(

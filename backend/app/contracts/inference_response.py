@@ -9,6 +9,7 @@ class ThreatClass(str, Enum):
     SYN_FLOOD = "SYN_FLOOD"
     DGA_DNS_TUNNELING = "DGA_DNS_TUNNELING"
     MALICIOUS_TLS = "MALICIOUS_TLS"
+    DATA_EXFILTRATION = "DATA_EXFILTRATION"
 
 
 class InferenceResponse(BaseModel):

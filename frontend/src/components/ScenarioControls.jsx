@@ -7,6 +7,9 @@ const SCENARIOS = [
   { key: "port_scan", label: "Port scan" },
   { key: "c2_beaconing", label: "C2 beaconing" },
   { key: "syn_flood", label: "SYN flood" },
+  { key: "data_exfiltration", label: "Data exfiltration" },
+  { key: "dga_dns_tunneling", label: "DGA DNS tunneling" },
+{ key: "malicious_tls", label: "Malicious TLS" },
 ];
 
 export function ScenarioControls({ currentScenario }) {
