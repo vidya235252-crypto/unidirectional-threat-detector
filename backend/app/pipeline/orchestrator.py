@@ -10,7 +10,12 @@ from app.inference.inference_client import classify
 from app.core.alert_engine import AlertEngine, Alert
 from app.core.dedup import Deduplicator
 
+from app.contracts.dns_tls_events import DnsQueryRecord, TlsSessionRecord
+from app.inference.secondary_detectors import classify_dns_record, classify_tls_record
+
 StreamItem = Tuple[Flow, FeatureVector, Optional[Alert]]
+DnsStreamItem = Tuple[DnsQueryRecord, Optional[Alert]]
+TlsStreamItem = Tuple[TlsSessionRecord, Optional[Alert]]
 
 
 def stream_scenario(scenario_path: Path) -> Iterator[StreamItem]:
@@ -62,3 +67,30 @@ def run_scenario_full(scenario_path: Path) -> Tuple[List[Tuple[Flow, FeatureVect
 def run_scenario_with_alerts(scenario_path: Path) -> List[Alert]:
     _, alerts = run_scenario_full(scenario_path)
     return alerts
+
+
+def stream_dns_scenario(scenario_path: Path) -> Iterator[DnsStreamItem]:
+    with open(scenario_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = DnsQueryRecord.from_json_line(line)
+            alert = classify_dns_record(
+                record.domain, record.query_type, record.timestamp, record.src_ip
+            )
+            yield record, alert
+
+
+def stream_tls_scenario(scenario_path: Path) -> Iterator[TlsStreamItem]:
+    with open(scenario_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = TlsSessionRecord.from_json_line(line)
+            alert = classify_tls_record(
+                record.fingerprint, record.transport, record.role,
+                record.timestamp, record.src_ip,
+            )
+            yield record, alert

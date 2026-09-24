@@ -7,12 +7,15 @@ from pydantic import BaseModel
 
 from app.core import config
 from app.db import database
-from app.pipeline.orchestrator import stream_scenario
+from app.pipeline.orchestrator import stream_scenario, stream_dns_scenario, stream_tls_scenario
 from app.api.ws_manager import manager
 
 router = APIRouter()
 
-SCENARIO_NAMES = ["benign", "port_scan", "syn_flood", "c2_beaconing"]
+FLOW_SCENARIOS = ["benign", "port_scan", "syn_flood", "c2_beaconing"]
+DNS_SCENARIOS = ["dga_dns_tunneling"]
+TLS_SCENARIOS = ["malicious_tls"]
+SCENARIO_NAMES = FLOW_SCENARIOS + DNS_SCENARIOS + TLS_SCENARIOS
 
 _current_task: Optional[asyncio.Task] = None
 _current_scenario: Optional[str] = None
@@ -79,6 +82,64 @@ async def _stream_scenario(name: str) -> None:
     _current_scenario = None
 
 
+async def _emit_alert(alert) -> None:
+    database.insert_alert(
+        alert_id=alert.alert_id,
+        timestamp=alert.timestamp,
+        flow_id=alert.flow_id,
+        threat_class=alert.threat_class,
+        severity=alert.severity,
+        confidence=alert.confidence,
+        anomaly_score=alert.anomaly_score,
+        evidence=alert.evidence,
+        model_version=alert.model_version,
+    )
+    await manager.broadcast({"type": "alert", "alert": _alert_to_dict(alert)})
+    await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
+
+
+async def _stream_dns_scenario(name: str) -> None:
+    global _current_scenario
+    path = _scenario_path(name)
+
+    await manager.broadcast({"type": "scenario_started", "scenario": name})
+    try:
+        for _record, alert in stream_dns_scenario(path):
+            if alert is not None:
+                await _emit_alert(alert)
+    except FileNotFoundError as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
+        _current_scenario = None
+        return
+    await manager.broadcast({"type": "scenario_complete", "scenario": name})
+    _current_scenario = None
+
+
+async def _stream_tls_scenario(name: str) -> None:
+    global _current_scenario
+    path = _scenario_path(name)
+
+    await manager.broadcast({"type": "scenario_started", "scenario": name})
+    try:
+        for _record, alert in stream_tls_scenario(path):
+            if alert is not None:
+                await _emit_alert(alert)
+    except FileNotFoundError as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
+        _current_scenario = None
+        return
+    await manager.broadcast({"type": "scenario_complete", "scenario": name})
+    _current_scenario = None
+
+
+def _run_scenario_task(name: str) -> asyncio.Task:
+    if name in DNS_SCENARIOS:
+        return asyncio.create_task(_stream_dns_scenario(name))
+    if name in TLS_SCENARIOS:
+        return asyncio.create_task(_stream_tls_scenario(name))
+    return asyncio.create_task(_stream_scenario(name))
+
+
 @router.post("/api/scenario/start")
 async def start_scenario(request: ScenarioStartRequest):
     global _current_task, _current_scenario
@@ -90,7 +151,7 @@ async def start_scenario(request: ScenarioStartRequest):
         raise HTTPException(status_code=409, detail=f"Scenario '{_current_scenario}' already running")
 
     _current_scenario = request.scenario
-    _current_task = asyncio.create_task(_stream_scenario(request.scenario))
+    _current_task = _run_scenario_task(request.scenario)
     return {"status": "started", "scenario": request.scenario}
 
 

@@ -7,6 +7,8 @@ class ThreatClass(str, Enum):
     C2_BEACONING = "C2_BEACONING"
     PORT_SCAN = "PORT_SCAN"
     SYN_FLOOD = "SYN_FLOOD"
+    DGA_DNS_TUNNELING = "DGA_DNS_TUNNELING"
+    MALICIOUS_TLS = "MALICIOUS_TLS"
 
 
 class InferenceResponse(BaseModel):
