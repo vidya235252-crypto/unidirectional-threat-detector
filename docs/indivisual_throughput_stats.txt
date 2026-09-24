@@ -1,0 +1,17 @@
+(ml_py11) C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector>python scripts\throughput_measurement.py
+[single-flow] RF: p50=77231.7µs  p95=86820.0µs  p99=94245.7µs  throughput=12.9 flows/sec
+[single-flow] IForest: p50=55054.7µs  p95=62123.1µs  p99=69318.8µs  throughput=18.1 flows/sec
+[batched x50] RF: per-row p50=525.7µs  per-row p99=1893.6µs  throughput=1329.7 flows/sec
+[batched x50] IForest: per-row p50=351.8µs  per-row p99=1299.7µs  throughput=1990.1 flows/sec
+
+(ml_py11) C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector>python scripts\dga_ja3_throughput.py
+  -> 97 known-bad fingerprints loaded
+  -> matched hash column: ''ja3_md5'' (column index 0)
+  -> sample loaded value: '098f55e27d8c4b0a590102cbdb3a5f3a'
+DGA/DNS: p50=6.9µs  p95=32.9µs  p99=43.9µs  throughput=77305.6 flows/sec
+JA3: p50=1.5µs  p95=2.5µs  p99=10.3µs  throughput=488768.3 flows/sec
+
+(ml_py11) C:\Users\chinm\OneDrive\Desktop\unidirectional-threat-detector>python scripts\behavioral_throughput.py
+Behavioral/Exfil: p50=3.6µs  p95=3.8µs  p99=6.0µs  throughput=260854.2 flows/sec
+  (scored=4800, cold_start=200 — confirms both code paths were exercised)
+[COPY PASTED FROM TERMINAL FOR YOUR REFERENCE]
