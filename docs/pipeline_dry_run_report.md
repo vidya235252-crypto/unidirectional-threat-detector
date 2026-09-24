@@ -294,6 +294,10 @@ dashboard's artificial scenario playback delay.
 
 ### End-to-end streaming benchmark
 
+**Target throughput: at least 30 flows/sec sustained on the reference development machine.**
+
+The target is defined as an end-to-end detector-processing rate through the streaming orchestrator, excluding the dashboard's artificial playback delay. The measured result below is compared directly against this target.
+
 | Scenario | Flows processed | Throughput |
 |---|---:|---:|
 | Benign | 100 | 10.6 flows/sec |
