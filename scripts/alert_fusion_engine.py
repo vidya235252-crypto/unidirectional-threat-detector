@@ -2,12 +2,20 @@
 alert_fusion_engine.py
 
 SecurityAlertEngine — centralized alert fusion for the unidirectional
-threat detector pipeline. Ingests structured outputs from three independent
+threat detector pipeline. Ingests structured outputs from four independent
 detection branches:
 
-    1. network_ml   -> Random Forest + Isolation Forest (rare-class corroboration)
+    1. network_ml    -> Random Forest + Isolation Forest (rare-class corroboration)
     2. dns_branch    -> DGA / DNS tunneling detector
     3. tls_branch    -> JA3/JA3S fingerprint detector
+    4. behavioral_branch -> outbound volume-baseline drift + low-and-slow
+                             (outbound_behavioral_detector.py) — the two
+                             sub-signals are already merged into ONE
+                             BEHAVIORAL_SIGNAL category upstream, in
+                             classify_outbound_behavior(), specifically so
+                             this branch can only ever contribute a single
+                             vote toward fusion (see design decision #6
+                             below — it must never self-escalate).
 
 ...correlates them per `source_ip` inside a rolling time window, and
 escalates 2+ independently-firing signal categories into a single
@@ -75,6 +83,18 @@ DESIGN DECISIONS (read this before touching the fusion logic)
    alert for that same IP, while still logging incoming signals normally.
    This is a judgment call flagged here explicitly so it's easy to find
    and change — see `cooldown_seconds` in `__init__`.
+
+6. BEHAVIORAL BRANCH REGISTERS AT MOST ONE SIGNAL CATEGORY, EVER.
+   outbound_behavioral_detector.classify_outbound_behavior() already merges
+   its two internal heuristics (volume baseline drift, low-and-slow) into
+   one BEHAVIORAL_SIGNAL event before this engine ever sees it — that
+   merge is deliberate and happens upstream, not here, specifically so a
+   correlated pair of outbound-metadata heuristics can never reach the
+   "2+ categories" escalation bar on their own, the same corroboration
+   philosophy already applied to IForest (design decision #2). This
+   engine's job for this branch is therefore simple: register the ONE
+   signal if triggered, nothing if not — no additional gate is added here,
+   because classify_outbound_behavior() already is the gate.
 ================================================================================
 """
 
@@ -86,6 +106,20 @@ from pathlib import Path
 from typing import Optional
 
 import joblib
+
+# NOTE: this module's own header comment and every internal cross-reference
+# call the behavioral module "outbound_behavioral_detector.py", but the file
+# actually shipped as data_exfilteration_logic.py — importing the name in
+# the comments (as the previous version of this line did) raises
+# ModuleNotFoundError at engine start-up. Importing the real filename here;
+# rename the file to match its own docstring, or vice versa, but pick one —
+# don't let the name in prose and the name on disk keep drifting apart.
+from data_exfilteration_logic import (
+    BEHAVIORAL_SIGNAL as _BEHAVIORAL_SIGNAL_VALUE,
+    PerIPTracker,
+    classify_outbound_behavior,
+)
+from feature_vector_translator import translate_feature_vector_to_behavioral_payload
 
 # --------------------------------------------------------------------------
 # Structured record types
@@ -122,6 +156,9 @@ class SecurityAlertEngine:
     ML_SIGNAL = "ML_BRANCH_SIGNAL"
     DNS_SIGNAL = "DNS_BRANCH_SIGNAL"
     TLS_SIGNAL = "TLS_BRANCH_SIGNAL"
+    BEHAVIORAL_SIGNAL = _BEHAVIORAL_SIGNAL_VALUE  # sourced from the detector
+    # module itself, not redefined as a fresh string here, so the two files
+    # can never silently drift apart on what this category is called.
 
     def __init__(
         self,
@@ -155,6 +192,13 @@ class SecurityAlertEngine:
         self.cooldown_seconds = (
             cooldown_seconds if cooldown_seconds is not None else window_seconds
         )
+
+        # Behavioral branch: ONE PerIPTracker instance, owned by the engine
+        # for the whole run. classify_outbound_behavior()'s contract
+        # requires a long-lived tracker passed in by the caller — building
+        # a fresh one per call would reset every entity's EWMA baseline to
+        # cold-start on every single flow.
+        self._behavioral_tracker = PerIPTracker()
 
         # Design decision #3: rolling memory, keyed by source_ip, lazily pruned.
         # Each entry: {"timestamp": float, "signal_type": str, "flow_id": str,
@@ -298,6 +342,94 @@ class SecurityAlertEngine:
         )
 
     # ----------------------------------------------------------------------
+    # Branch 4: behavioral_branch (outbound volume-baseline drift + low-and-slow)
+    # ----------------------------------------------------------------------
+    def process_behavioral_branch(self, payload: dict) -> list:
+        """
+        Expected payload:
+            {
+                "source_ip": str,
+                "timestamp": float,
+                "flow_id": str,
+                "byte_count": int,       # this flow's outbound byte count
+                "flow_duration": float,  # seconds
+                "pps": float,            # packets/sec for this flow
+                "dest_ip": str,          # reserved field in the detector's
+                                         # own contract, passed through
+                                         # unchanged — not used in scoring
+                                         # yet (see outbound_behavioral_
+                                         # detector.py docstring)
+                "evidence": dict,        # optional — any extra context to
+                                         # carry through to the alert
+            }
+
+        Calls classify_outbound_behavior() against this engine's one
+        long-lived PerIPTracker. That function already merges its two
+        internal heuristics into a single BEHAVIORAL_SIGNAL decision (see
+        design decision #6 above), so this method's job is only to
+        register that one signal when triggered — no extra gating here.
+
+        A cold-start result (status == "INSUFFICIENT_HISTORY") is never an
+        alert and is never logged as a near-miss: unlike the ML branch's
+        near-miss case, nothing "fired and failed corroboration" here —
+        the detector simply hasn't seen enough history yet to say anything
+        for this entity, which is a routine, expected, per-entity ramp-up
+        state rather than evidence worth auditing.
+        """
+        result = classify_outbound_behavior(
+            tracker=self._behavioral_tracker,
+            ip_address=payload["source_ip"],
+            timestamp=payload["timestamp"],
+            byte_count=payload["byte_count"],
+            flow_duration=payload["flow_duration"],
+            pps=payload["pps"],
+            dest_ip=payload.get("dest_ip", ""),
+        )
+
+        if not result["alert_triggered"]:
+            return []
+
+        metrics = result["metrics"]
+        fired = []
+        if metrics["baseline_drift"]["triggered"]:
+            fired.append(
+                f"volume baseline drift (z={metrics['baseline_drift']['z_score']:.2f})"
+            )
+        if metrics["low_and_slow"]["triggered"]:
+            fired.append(
+                f"low-and-slow (duration={metrics['low_and_slow']['duration']:.0f}s, "
+                f"pps={metrics['low_and_slow']['pps']:.2f})"
+            )
+
+        return self._register_signal(
+            payload["source_ip"], payload["timestamp"], self.BEHAVIORAL_SIGNAL,
+            payload["flow_id"],
+            detail=" + ".join(fired),
+            evidence={**payload.get("evidence", {}), "behavioral_metrics": metrics,
+                      "dest_ip": payload.get("dest_ip")},
+        )
+
+    # ----------------------------------------------------------------------
+    # Branch 4, real-pipeline entry point: builds the process_behavioral_
+    # branch() payload FROM the 10-field ML feature vector + flow metadata,
+    # instead of requiring byte_count/flow_duration/pps/dest_ip to already
+    # exist as their own named fields (see feature_vector_translator.py for
+    # why that assumption doesn't hold against the live flow engine today).
+    #
+    # Use THIS method when wiring the real pipeline; use
+    # process_behavioral_branch() directly only for tests/demos where you
+    # already have a hand-built payload (as the __main__ block below does).
+    # ----------------------------------------------------------------------
+    def process_behavioral_branch_from_feature_vector(
+        self, feature_vector: dict, flow_meta: dict,
+        duration_unit: str = "microseconds", evidence: Optional[dict] = None,
+    ) -> list:
+        payload = translate_feature_vector_to_behavioral_payload(
+            feature_vector, flow_meta, duration_unit=duration_unit, evidence=evidence,
+        )
+        return self.process_behavioral_branch(payload)
+
+    # ----------------------------------------------------------------------
     # Internal: register a signal, prune stale entries, evaluate fusion
     # ----------------------------------------------------------------------
     def _register_signal(self, source_ip, timestamp, signal_type, flow_id, detail, evidence) -> list:
@@ -438,6 +570,50 @@ if __name__ == "__main__":
 
     for a in alerts:
         print(a)
+
+    # Behavioral branch, standalone: a volume spike on its own must stay a
+    # LOW-severity alert — it is only one signal category, never enough by
+    # itself to escalate (design decision #6). Establish a baseline first,
+    # then spike it.
+    behavioral_ip = "10.0.0.77"
+    for i in range(10):
+        engine.process_behavioral_branch({
+            "source_ip": behavioral_ip, "timestamp": now + i, "flow_id": f"flow-b{i}",
+            "byte_count": 50_000, "flow_duration": 15.0, "pps": 35.0,
+            "dest_ip": "93.184.216.34",
+        })
+    standalone_alerts = engine.process_behavioral_branch({
+        "source_ip": behavioral_ip, "timestamp": now + 10, "flow_id": "flow-b10",
+        "byte_count": 2_000_000, "flow_duration": 10.0, "pps": 30.0,
+        "dest_ip": "93.184.216.34",
+    })
+    print("\nBehavioral branch alone (expect LOW):")
+    for a in standalone_alerts:
+        print(a)
+    assert standalone_alerts[0].severity == "LOW"
+
+    # Behavioral branch + TLS branch on the SAME IP within the window ->
+    # must escalate to HIGH, proving the 4th branch corroborates correctly.
+    combo_ip = "10.0.0.88"
+    for i in range(10):
+        engine.process_behavioral_branch({
+            "source_ip": combo_ip, "timestamp": now + i, "flow_id": f"flow-c{i}",
+            "byte_count": 50_000, "flow_duration": 15.0, "pps": 35.0,
+            "dest_ip": "203.0.113.9",
+        })
+    combo_alerts = engine.process_behavioral_branch({
+        "source_ip": combo_ip, "timestamp": now + 10, "flow_id": "flow-c10",
+        "byte_count": 2_000_000, "flow_duration": 10.0, "pps": 30.0,
+        "dest_ip": "203.0.113.9",
+    })
+    combo_alerts += engine.process_tls_branch({
+        "source_ip": combo_ip, "timestamp": now + 15, "flow_id": "flow-c11",
+        "ja3_match": True, "ja3_hash": "def456...", "matched_signature": "known-c2-family",
+    })
+    print("\nBehavioral + TLS on same IP (expect HIGH escalation):")
+    for a in combo_alerts:
+        print(a)
+    assert any(a.severity == "HIGH" for a in combo_alerts)
 
     print()
     print(engine.generate_summary_report())
