@@ -17,17 +17,22 @@ export function ScenarioControls({ currentScenario, onScenarioSelect }) {
 
   async function startScenario(name) {
     setError(null);
-    onScenarioSelect?.(name);
     try {
       const res = await fetch(`${API_BASE}/api/scenario/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario: name }),
       });
+
+      const body = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const body = await res.json();
         setError(body.detail ?? "Failed to start scenario");
+        return;
       }
+
+      // Select only after the backend confirms that the scenario started.
+      onScenarioSelect?.(name);
     } catch {
       setError("Could not reach backend");
     }
