@@ -7,6 +7,7 @@ export function useEvents() {
   const [alerts, setAlerts] = useState([]);
   const [status, setStatus] = useState("disconnected");
   const [currentScenario, setCurrentScenario] = useState(null);
+  const [selectedScenario, setSelectedScenario] = useState(null);
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -138,5 +139,7 @@ export function useEvents() {
     alerts,
     status,
     currentScenario,
+    selectedScenario,
+    setSelectedScenario,
   };
 }
