@@ -66,9 +66,9 @@ def _alert_to_dict(alert) -> dict:
         "timestamp": alert.timestamp,
         "flow_id": alert.flow_id,
         "src_ip": flow.get("src_ip"),
-        "dst_ip": flow.get("dst_ip"),
-        "src_port": flow.get("src_port"),
-        "dst_port": flow.get("dst_port"),
+        "dst_ip": flow.get("dst_ip") or None,
+        "src_port": flow.get("src_port") or None,
+        "dst_port": flow.get("dst_port") or None,
         "protocol": flow.get("protocol"),
         "threat_class": alert.threat_class,
         "severity": alert.severity,
@@ -173,8 +173,14 @@ async def _stream_dns_scenario(name: str) -> None:
                 break
             _record_detection_latency(started)
             _record_flow()
+            _insert_metadata_flow(
+                _record.flow_id,
+                _record.timestamp,
+                _record.src_ip,
+                "DNS",
+                53,
+            )
             if alert is not None:
-                _insert_metadata_flow(alert.flow_id, _record.timestamp, _record.src_ip, "DNS", 53)
                 await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
@@ -199,8 +205,14 @@ async def _stream_tls_scenario(name: str) -> None:
                 break
             _record_detection_latency(started)
             _record_flow()
+            _insert_metadata_flow(
+                _record.flow_id,
+                _record.timestamp,
+                _record.src_ip,
+                "TLS",
+                443,
+            )
             if alert is not None:
-                _insert_metadata_flow(alert.flow_id, _record.timestamp, _record.src_ip, "TLS", 443)
                 await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
