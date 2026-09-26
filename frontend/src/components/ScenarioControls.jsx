@@ -3,7 +3,6 @@ import { useState } from "react";
 const API_BASE = "http://127.0.0.1:8000";
 
 const SCENARIOS = [
-  { key: "benign", label: "Benign", code: "BL", kind: "Baseline traffic" },
   { key: "port_scan", label: "Port scan", code: "PS", kind: "Reconnaissance" },
   { key: "c2_beaconing", label: "C2 beaconing", code: "C2", kind: "Command channel" },
   { key: "syn_flood", label: "SYN flood", code: "SF", kind: "Flood pattern" },
@@ -12,12 +11,13 @@ const SCENARIOS = [
   { key: "malicious_tls", label: "Malicious TLS", code: "MT", kind: "TLS metadata" },
 ];
 
-export function ScenarioControls({ currentScenario }) {
+export function ScenarioControls({ currentScenario, onScenarioSelect }) {
   const [sequenceRunning, setSequenceRunning] = useState(false);
   const [error, setError] = useState(null);
 
   async function startScenario(name) {
     setError(null);
+    onScenarioSelect?.(name);
     try {
       const res = await fetch(`${API_BASE}/api/scenario/start`, {
         method: "POST",
@@ -78,6 +78,10 @@ export function ScenarioControls({ currentScenario }) {
   return (
     <div className="scenario-controls">
       <div className="scenario-toolbar">
+        <div className="scenario-console-label">
+          <span>VALIDATION CONSOLE</span>
+          <small>READ-ONLY TRAFFIC REPLAY</small>
+        </div>
         <div className="scenario-state">
           <span className={`scenario-state-dot ${busy ? "running" : ""}`} />
           <div>
@@ -127,6 +131,7 @@ export function ScenarioControls({ currentScenario }) {
               disabled={busy}
               aria-pressed={active}
             >
+              <span className="scenario-card-index">{String(SCENARIOS.findIndex((item) => item.key === key) + 1).padStart(2, "0")}</span>
               <span className="scenario-card-code">{code}</span>
               <span className="scenario-card-copy">
                 <strong>{label}</strong>

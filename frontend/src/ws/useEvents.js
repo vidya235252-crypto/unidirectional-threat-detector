@@ -10,6 +10,26 @@ export function useEvents() {
   const wsRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecentAlerts() {
+      try {
+        const res = await fetch(`${API_BASE}/api/alerts?limit=5`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAlerts(data.slice(0, 5));
+      } catch {
+        // Live WebSocket remains available when REST is unavailable.
+      }
+    }
+
+    loadRecentAlerts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const socket = new WebSocket(WS_URL);
     wsRef.current = socket;
 
@@ -23,10 +43,12 @@ export function useEvents() {
       const message = JSON.parse(event.data);
 
       if (message.type === "alert") {
-        setAlerts((prev) => [message.alert, ...prev]);
+        const alert = { ...message.alert, scenario: message.scenario ?? null };
+        setAlerts((prev) => [alert, ...prev.filter((item) => item.alert_id !== alert.alert_id)].slice(0, 20));
       }
 
       if (message.type === "scenario_started") {
+        setAlerts([]);
         setCurrentScenario(message.scenario);
       }
 

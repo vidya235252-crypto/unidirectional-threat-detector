@@ -1,8 +1,4 @@
-const SEVERITY_COLORS = {
-  HIGH: "var(--sev-high)",
-  MEDIUM: "var(--sev-medium)",
-  LOW: "var(--sev-low)",
-};
+import { useMemo, useState } from "react";
 
 const THREAT_LABELS = {
   PORT_SCAN: "Port scan",
@@ -12,6 +8,11 @@ const THREAT_LABELS = {
   DGA_DNS_TUNNELING: "DGA / DNS tunneling",
   MALICIOUS_TLS: "Malicious TLS",
 };
+
+const THREAT_OPTIONS = [
+  ["ALL", "All classes"],
+  ...Object.entries(THREAT_LABELS),
+];
 
 function formatTime(iso) {
   try {
@@ -30,81 +31,234 @@ function formatPercent(value) {
   return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(0)}%` : "—";
 }
 
-export function AlertFeed({ alerts }) {
-  if (alerts.length === 0) {
+function normalize(value) {
+  return String(value ?? "").toLowerCase();
+}
+
+export function AlertFeed({ alerts, currentScenario }) {
+  const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [threatFilter, setThreatFilter] = useState("ALL");
+  const [query, setQuery] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+
+  const scenarioAlerts = useMemo(() => {
+    if (!currentScenario) return [];
+    return alerts.filter((alert) => alert.scenario === currentScenario);
+  }, [alerts, currentScenario]);
+
+  const filteredAlerts = useMemo(() => {
+    const needle = normalize(query).trim();
+    return scenarioAlerts.filter((alert) => {
+      const severityMatch =
+        severityFilter === "ALL" || alert.severity === severityFilter;
+      const threatMatch =
+        threatFilter === "ALL" || alert.threat_class === threatFilter;
+
+      if (!severityMatch || !threatMatch) return false;
+      if (!needle) return true;
+
+      const haystack = [
+        alert.alert_id,
+        alert.flow_id,
+        alert.threat_class,
+        alert.severity,
+        alert.src_ip,
+        alert.dst_ip,
+        alert.protocol,
+        alert.evidence?.traffic,
+        alert.evidence?.temporal,
+        alert.evidence?.ml,
+        alert.evidence?.rule,
+      ].map(normalize).join(" ");
+
+      return haystack.includes(needle);
+    });
+  }, [scenarioAlerts, severityFilter, threatFilter, query]);
+
+  const severityCounts = scenarioAlerts.reduce((acc, alert) => {
+    const key = alert.severity ?? "UNKNOWN";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  function toggleAlert(alertId) {
+    setExpandedId((current) => (current === alertId ? null : alertId));
+  }
+
+  if (scenarioAlerts.length === 0) {
     return (
-      <div className="alert-empty">
-        <span className="empty-marker" aria-hidden="true" />
-        <div>
-          <strong>NO DETECTIONS IN SESSION</strong>
-          <span>Start a scenario to stream live detections from the sensor.</span>
+      <>
+        <FeedToolbar
+          severityFilter={severityFilter}
+          setSeverityFilter={setSeverityFilter}
+          threatFilter={threatFilter}
+          setThreatFilter={setThreatFilter}
+          query={query}
+          setQuery={setQuery}
+          count={0}
+          total={0}
+          severityCounts={severityCounts}
+        />
+        <div className="alert-empty">
+          <span className="empty-marker" aria-hidden="true" />
+          <div>
+            <strong>NO DETECTIONS IN SESSION</strong>
+            <span>Select and run a scenario above to stream only that scenario’s detections into this console.</span>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="alert-feed">
-      {alerts.map((alert, index) => (
-        <article
-          key={alert.alert_id}
-          className={`alert-row ${index === 0 ? "fresh" : ""}`}
-        >
-          <div className="alert-row-head">
-            <div className="alert-time-block">
-              <span className="alert-timestamp">{formatTime(alert.timestamp)}</span>
-              <span className="alert-live-mark">
-                {index === 0 ? "LATEST" : "EVENT"}
-              </span>
-            </div>
+    <>
+      <FeedToolbar
+        severityFilter={severityFilter}
+        setSeverityFilter={setSeverityFilter}
+        threatFilter={threatFilter}
+        setThreatFilter={setThreatFilter}
+        query={query}
+        setQuery={setQuery}
+        count={filteredAlerts.length}
+        total={scenarioAlerts.length}
+        severityCounts={severityCounts}
+      />
 
-            <div className="alert-identity">
-              <span className="alert-class">
-                {formatThreatClass(alert.threat_class)}
-              </span>
-              <span className="alert-id">{alert.alert_id}</span>
-            </div>
+      <div className="alert-feed">
+        {filteredAlerts.map((alert, index) => {
+          const expanded = expandedId === alert.alert_id;
+          const severity = String(alert.severity ?? "LOW").toLowerCase();
 
-            <span
-              className={`severity-tag severity-${String(alert.severity ?? "").toLowerCase()}`}
-              style={{
-                color: SEVERITY_COLORS[alert.severity] ?? "var(--text-dim)",
-              }}
+          return (
+            <article
+              key={alert.alert_id}
+              className={`alert-row alert-row-compact severity-row-${severity} ${index === 0 ? "fresh" : ""} ${expanded ? "expanded" : ""}`}
             >
-              <span className="severity-dot" aria-hidden="true" />
-              {alert.severity ?? "UNKNOWN"}
-            </span>
-          </div>
+              <button
+                type="button"
+                className="alert-summary"
+                onClick={() => toggleAlert(alert.alert_id)}
+                aria-expanded={expanded}
+              >
+                <span className="alert-expand" aria-hidden="true">{expanded ? "−" : "+"}</span>
+                <span className="alert-timestamp">{formatTime(alert.timestamp)}</span>
+                <span className="alert-class">{formatThreatClass(alert.threat_class)}</span>
+                <span className="alert-route">
+                  {alert.src_ip ?? "—"} <i>→</i> {alert.dst_ip ?? "—"}
+                </span>
+                <span className={`severity-tag severity-${severity}`}>
+                  <span className="severity-dot" />
+                  {alert.severity ?? "LOW"}
+                </span>
+                <span className="alert-confidence">
+                  <b>CONF</b> {formatPercent(alert.confidence)}
+                </span>
+                <span className="alert-row-id">{alert.alert_id}</span>
+                <span className="alert-chevron" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span>
+              </button>
 
-          <div className="alert-meta">
-            <span>
-              <b>FLOW</b> {alert.flow_id}
-            </span>
-            <span>
-              <b>CONFIDENCE</b> {formatPercent(alert.confidence)}
-            </span>
-            <span>
-              <b>ANOMALY</b> {formatPercent(alert.anomaly_score)}
-            </span>
-          </div>
+              {expanded && (
+                <div className="alert-detail">
+                  <div className="alert-detail-meta">
+                    <span><b>FLOW</b> {alert.flow_id ?? "—"}</span>
+                    <span><b>PROTOCOL</b> {alert.protocol ?? "—"}</span>
+                    <span><b>SRC PORT</b> {alert.src_port ?? "—"}</span>
+                    <span><b>DST PORT</b> {alert.dst_port ?? "—"}</span>
+                    <span><b>ANOMALY</b> {formatPercent(alert.anomaly_score)}</span>
+                    <span><b>MODEL</b> {alert.model_version ?? "—"}</span>
+                  </div>
 
-          <div className="alert-evidence">
-            <Evidence label="TRAFFIC" value={alert.evidence?.traffic} />
-            <Evidence label="TEMPORAL" value={alert.evidence?.temporal} />
-            <Evidence label="ML SIGNAL" value={alert.evidence?.ml} />
-            <Evidence label="RULE" value={alert.evidence?.rule} />
-          </div>
-        </article>
-      ))}
+                  <div className="evidence-heading">SUPPORTING SIGNALS / MODEL EVIDENCE</div>
+                  <div className="alert-evidence">
+                    <Evidence label="TRAFFIC" value={alert.evidence?.traffic} />
+                    <Evidence label="TEMPORAL" value={alert.evidence?.temporal} />
+                    <Evidence label="ML SIGNAL" value={alert.evidence?.ml} />
+                    <Evidence label="RULE" value={alert.evidence?.rule} />
+                  </div>
+                </div>
+              )}
+            </article>
+          );
+        })}
+
+        {filteredAlerts.length === 0 && scenarioAlerts.length > 0 && (
+          <div className="alert-filter-empty">No events match the current filters.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function FeedToolbar({
+  severityFilter,
+  setSeverityFilter,
+  threatFilter,
+  setThreatFilter,
+  query,
+  setQuery,
+  count,
+  total,
+  severityCounts,
+}) {
+  return (
+    <div className="feed-toolbar">
+      <div className="feed-toolbar-count">
+        <strong>{count}</strong>
+        <span>/ {total} EVENTS</span>
+      </div>
+
+
+      <label className="feed-filter">
+        <span>SEVERITY</span>
+        <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
+          <option value="ALL">All severities</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
+        </select>
+      </label>
+
+      <label className="feed-filter">
+        <span>THREAT CLASS</span>
+        <select value={threatFilter} onChange={(event) => setThreatFilter(event.target.value)}>
+          {THREAT_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="feed-search">
+        <span>SEARCH</span>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="IP, flow, alert ID…"
+          type="search"
+        />
+      </label>
+
+      <div className="feed-severity-summary" aria-label="Severity counts">
+        {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => (
+          <span key={level} className={`severity-summary severity-${level.toLowerCase()}`}>
+            <i /> {level} {severityCounts[level] ?? 0}
+          </span>
+        ))}
+      </div>
+
     </div>
   );
 }
 
 function Evidence({ label, value }) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
   return (
     <div className="evidence-item">
       <span className="evidence-label">{label}</span>
-      <span className="evidence-value">{value ?? "No evidence reported"}</span>
+      <span className="evidence-value">{String(value)}</span>
     </div>
   );
 }

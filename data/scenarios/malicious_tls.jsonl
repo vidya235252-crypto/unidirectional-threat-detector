@@ -1,0 +1,3 @@
+{"fingerprint":"00000000000000000000000000000000","transport":"tls","role":"client","timestamp":"2026-09-11T13:00:00Z","src_ip":"10.0.0.66"}
+{"fingerprint":"00000000000000000000000000000000","transport":"tls","role":"client","timestamp":"2026-09-11T13:00:01Z","src_ip":"10.0.0.66"}
+{"fingerprint":"00000000000000000000000000000000","transport":"quic","role":"client","timestamp":"2026-09-11T13:00:02Z","src_ip":"10.0.0.66"}
