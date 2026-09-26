@@ -1085,3 +1085,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 1rem;
+}
+
+.nav-item {
+  display: flex;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sensor-banner,
+.overview-grid,
+.scenario-section,
+.alert-log {
+  scroll-margin-top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
