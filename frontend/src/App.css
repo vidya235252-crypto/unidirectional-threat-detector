@@ -411,32 +411,100 @@
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.012);
+  overflow: hidden;
 }
 
 .stat {
+  position: relative;
   min-width: 0;
-  padding: 1rem 1.05rem;
+  min-height: 116px;
+  padding: 0.9rem 1rem 0.8rem;
   border-right: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.008);
 }
 
 .stat:last-child {
   border-right: none;
 }
 
-.stat-value {
-  color: #f0f3f7;
-  font-family: var(--font-mono);
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1.1;
+.stat-primary {
+  background:
+    linear-gradient(180deg, rgba(79, 209, 197, 0.045), transparent 70%),
+    rgba(255, 255, 255, 0.01);
+}
+
+.stat-alert {
+  background:
+    linear-gradient(180deg, rgba(242, 85, 90, 0.045), transparent 70%),
+    rgba(255, 255, 255, 0.01);
+}
+
+.stat-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1rem;
 }
 
 .stat-label {
-  margin-top: 0.35rem;
+  margin: 0;
   color: var(--text-dim);
-  font-size: 0.66rem;
-  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: 0.59rem;
+  font-weight: 600;
   letter-spacing: 0.07em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.stat-index {
+  color: #505864;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+}
+
+.stat-value {
+  margin-top: 0.65rem;
+  color: #f0f3f7;
+  font-family: var(--font-mono);
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stat-primary .stat-value {
+  color: var(--accent);
+}
+
+.stat-alert .stat-value {
+  color: #f27b7f;
+}
+
+.stat-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  color: #626a77;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.03em;
+}
+
+.stat-bar {
+  height: 2px;
+  margin-top: 0.48rem;
+  overflow: hidden;
+  background: #252b34;
+}
+
+.stat-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.7;
+  transition: width 180ms ease-out;
 }
 
 /* ── Scenario controls ─────────────────────────────────────── */
@@ -666,7 +734,12 @@
   }
 
   .stat {
+    border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  .stat:last-child {
+    border-bottom: none;
   }
 }
 
