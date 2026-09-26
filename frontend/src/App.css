@@ -1110,3 +1110,70 @@ html {
     scroll-behavior: auto;
   }
 }
+
+
+/* Live detection feed */
+.alert-time-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.alert-live-mark {
+  color: #4f5865;
+  font-family: var(--font-mono);
+  font-size: 0.46rem;
+  letter-spacing: 0.09em;
+}
+
+.alert-row.fresh .alert-live-mark {
+  color: var(--accent);
+}
+
+.severity-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.severity-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.severity-high {
+  background: rgba(242, 85, 90, 0.035);
+}
+
+.severity-medium {
+  background: rgba(242, 169, 60, 0.035);
+}
+
+.severity-low {
+  background: rgba(91, 141, 239, 0.035);
+}
+
+.alert-row.fresh {
+  border-left-color: rgba(79, 209, 197, 0.55);
+}
+
+.alert-row.fresh::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  content: "";
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+@media (max-width: 760px) {
+  .alert-time-block {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+}
