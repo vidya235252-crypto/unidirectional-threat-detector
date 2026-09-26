@@ -123,7 +123,6 @@ function App() {
 />
         </section>
 
-        {selectedScenario && (
         <section id="detections" className="alert-log">
           <div className="section-heading compact">
             <div>
@@ -132,9 +131,8 @@ function App() {
               <p className="section-subnote">Expand an event to inspect traffic, temporal behaviour, ML signal and rule evidence.</p>
             </div>
           </div>
-          <AlertFeed alerts={alerts} currentScenario={selectedScenario} />
+          <AlertFeed alerts={alerts} currentScenario={selectedScenario ?? currentScenario} />
         </section>
-        )}
       </main>
     </div>
   );
