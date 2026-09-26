@@ -15,8 +15,12 @@ on the machine where it is run; it does not invent a benchmark result.
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))
 
 from app.core.config import SCENARIOS_DIR
 from app.pipeline.orchestrator import (
@@ -25,7 +29,6 @@ from app.pipeline.orchestrator import (
     stream_tls_scenario,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
 TARGET_FPS = 30.0
 
 FLOW_EXPECTATIONS = {
