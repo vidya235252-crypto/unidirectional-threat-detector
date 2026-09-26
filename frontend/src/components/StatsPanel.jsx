@@ -52,7 +52,8 @@ export function StatsPanel({ refreshKey }) {
   );
 
   return (
-    <div className="stats-strip">
+    <div className="stats-panel">
+      <div className="stats-strip">
       <Stat
         label="Flows observed"
         value={stats.total_flows}
@@ -76,6 +77,11 @@ export function StatsPanel({ refreshKey }) {
           barValue={(Number(count) || 0) / peakClassCount}
         />
       ))}
+      </div>
+      <div className="stats-caption">
+        <span><i /> LIVE TELEMETRY SNAPSHOT</span>
+        <span>REFRESH / 2S</span>
+      </div>
     </div>
   );
 }
