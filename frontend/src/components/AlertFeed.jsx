@@ -31,6 +31,10 @@ function formatPercent(value) {
   return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(0)}%` : "—";
 }
 
+function isBehavioralSignal(alert) {
+  return String(alert?.model_version ?? "").startsWith("behavioral-exfil-");
+}
+
 function normalize(value) {
   return String(value ?? "").toLowerCase();
 }
@@ -151,7 +155,8 @@ export function AlertFeed({ alerts, currentScenario }) {
                   {alert.severity ?? "LOW"}
                 </span>
                 <span className="alert-confidence">
-                  <b>CONF</b> {formatPercent(alert.confidence)}
+                  <b>{isBehavioralSignal(alert) ? "SIGNAL" : "CONF"}</b>{" "}
+                  {isBehavioralSignal(alert) ? "RULE HIT" : formatPercent(alert.confidence)}
                 </span>
                 <span className="alert-row-id">{alert.alert_id}</span>
                 <span className="alert-chevron" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span>
@@ -165,6 +170,7 @@ export function AlertFeed({ alerts, currentScenario }) {
                     <span><b>SRC PORT</b> {alert.src_port ?? "—"}</span>
                     <span><b>DST PORT</b> {alert.dst_port ?? "—"}</span>
                     <span><b>ANOMALY</b> {formatPercent(alert.anomaly_score)}</span>
+                    <span><b>DETECTION</b> {isBehavioralSignal(alert) ? "BEHAVIORAL RULE" : "MODEL"}</span>
                     <span><b>MODEL</b> {alert.model_version ?? "—"}</span>
                   </div>
 
