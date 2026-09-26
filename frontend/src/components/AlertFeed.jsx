@@ -14,12 +14,33 @@ const THREAT_OPTIONS = [
   ...Object.entries(THREAT_LABELS),
 ];
 
+const SCENARIO_BY_THREAT = {
+  PORT_SCAN: "port_scan",
+  C2_BEACONING: "c2_beaconing",
+  SYN_FLOOD: "syn_flood",
+  DATA_EXFILTRATION: "data_exfiltration",
+  DGA_DNS_TUNNELING: "dga_dns_tunneling",
+  MALICIOUS_TLS: "malicious_tls",
+};
+
 function formatTime(iso) {
-  try {
-    return new Date(iso).toLocaleTimeString("en-GB");
-  } catch {
-    return iso;
+  if (!iso) return "—";
+  const value = String(iso);
+
+  // Scenario timestamps are ISO-8601. Format the clock explicitly so
+  // timezone offsets never render as part of the visible time.
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    const match = value.match(/T(\d{2}:\d{2}:\d{2})/);
+    return match?.[1] ?? value;
   }
+
+  return parsed.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 function formatThreatClass(value) {
@@ -47,7 +68,11 @@ export function AlertFeed({ alerts, currentScenario }) {
 
   const scenarioAlerts = useMemo(() => {
     if (!currentScenario) return [];
-    return alerts.filter((alert) => alert.scenario === currentScenario);
+
+    return alerts.filter((alert) => {
+      const scenario = alert.scenario ?? SCENARIO_BY_THREAT[alert.threat_class];
+      return scenario === currentScenario;
+    });
   }, [alerts, currentScenario]);
 
   const filteredAlerts = useMemo(() => {
