@@ -30,6 +30,10 @@ _CLASS_MAP = {
 _rf_model = joblib.load(MODELS_DIR / "random_forest_model.joblib")
 _if_model = joblib.load(MODELS_DIR / "optimized_isolation_forest.joblib")
 
+# Cache the two most important RF feature indices once. Reading
+# feature_importances_ inside every classify() call walks every tree again.
+_TOP_FEATURE_INDICES = _rf_model.feature_importances_.argsort()[::-1][:2]
+
 with open(MODELS_DIR / "optimized_isolation_forest_threshold.json") as _f:
     _IF_THRESHOLD = json.load(_f)["calibrated_threshold"]
 
@@ -110,8 +114,11 @@ def classify(fv: FeatureVector) -> InferenceResponse:
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
-        rf_label = _rf_model.predict(row)[0]
+        # predict() would traverse the full forest and then predict_proba()
+        # would traverse it again. The class with the highest probability is
+        # exactly the classifier prediction, so keep this to one RF pass.
         rf_proba = _rf_model.predict_proba(row)[0]
+        rf_label = _rf_model.classes_[int(np.argmax(rf_proba))]
 
         if_row = _build_iforest_row(row)
         raw_anomaly = _if_model.score_samples(if_row)[0]
@@ -126,8 +133,7 @@ def classify(fv: FeatureVector) -> InferenceResponse:
     if rf_label == "Bots" and raw_anomaly > _IF_THRESHOLD:
         threat_class = ThreatClass.BENIGN
 
-    top_idx = _rf_model.feature_importances_.argsort()[::-1][:2]
-    top_features = [_FEATURE_ORDER[i] for i in top_idx]
+    top_features = [_FEATURE_ORDER[i] for i in _TOP_FEATURE_INDICES]
 
     return InferenceResponse(
         flow_id=fv.flow_id,
