@@ -6,8 +6,7 @@ import { AlertFeed } from "./components/AlertFeed";
 import { StatsPanel } from "./components/StatsPanel";
 
 function App() {
-  const { alerts, status, currentScenario } = useEvents();
-  const [selectedScenario, setSelectedScenario] = useState(null);
+  const { alerts, status, currentScenario, selectedScenario, setSelectedScenario } = useEvents();
 
   const connectionLabel =
     status === "connected"
