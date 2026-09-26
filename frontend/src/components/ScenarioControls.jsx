@@ -3,13 +3,13 @@ import { useState } from "react";
 const API_BASE = "http://127.0.0.1:8000";
 
 const SCENARIOS = [
-  { key: "benign", label: "Benign" },
-  { key: "port_scan", label: "Port scan" },
-  { key: "c2_beaconing", label: "C2 beaconing" },
-  { key: "syn_flood", label: "SYN flood" },
-  { key: "data_exfiltration", label: "Data exfiltration" },
-  { key: "dga_dns_tunneling", label: "DGA DNS tunneling" },
-  { key: "malicious_tls", label: "Malicious TLS" },
+  { key: "benign", label: "Benign", code: "BL", kind: "Baseline traffic" },
+  { key: "port_scan", label: "Port scan", code: "PS", kind: "Reconnaissance" },
+  { key: "c2_beaconing", label: "C2 beaconing", code: "C2", kind: "Command channel" },
+  { key: "syn_flood", label: "SYN flood", code: "SF", kind: "Flood pattern" },
+  { key: "data_exfiltration", label: "Data exfiltration", code: "DE", kind: "Outbound transfer" },
+  { key: "dga_dns_tunneling", label: "DGA DNS tunneling", code: "DG", kind: "DNS anomaly" },
+  { key: "malicious_tls", label: "Malicious TLS", code: "MT", kind: "TLS metadata" },
 ];
 
 export function ScenarioControls({ currentScenario }) {
@@ -73,24 +73,79 @@ export function ScenarioControls({ currentScenario }) {
   }
 
   const busy = currentScenario !== null || sequenceRunning;
+  const activeScenario = SCENARIOS.find(({ key }) => key === currentScenario);
 
   return (
-    <div>
-      <div className="control-rail">
-        {SCENARIOS.map(({ key, label }) => (
-          <button key={key} onClick={() => startScenario(key)} disabled={busy}>
-            {label}
+    <div className="scenario-controls">
+      <div className="scenario-toolbar">
+        <div className="scenario-state">
+          <span className={`scenario-state-dot ${busy ? "running" : ""}`} />
+          <div>
+            <span className="scenario-state-label">
+              {sequenceRunning ? "DEMO SEQUENCE" : busy ? "SCENARIO RUNNING" : "READY"}
+            </span>
+            <strong>
+              {sequenceRunning
+                ? "Executing validation set"
+                : activeScenario?.label ?? "Select a traffic scenario"}
+            </strong>
+          </div>
+        </div>
+
+        <div className="scenario-actions">
+          <button
+            className="scenario-stop"
+            type="button"
+            onClick={stopScenario}
+            disabled={!busy}
+          >
+            <span aria-hidden="true">■</span>
+            Stop
           </button>
-        ))}
-        <button onClick={stopScenario} disabled={!busy}>
-          Stop
-        </button>
-        <span className="spacer" />
-        <button className="primary" onClick={runSequence} disabled={busy}>
-          Run demo sequence
-        </button>
+          <button
+            className="scenario-sequence"
+            type="button"
+            onClick={runSequence}
+            disabled={busy}
+          >
+            <span>RUN</span>
+            Demo sequence
+          </button>
+        </div>
       </div>
-      {error && <p className="error-line">{error}</p>}
+
+      <div className="scenario-grid">
+        {SCENARIOS.map(({ key, label, code, kind }) => {
+          const active = currentScenario === key;
+
+          return (
+            <button
+              key={key}
+              className={`scenario-card ${active ? "active" : ""}`}
+              type="button"
+              onClick={() => startScenario(key)}
+              disabled={busy}
+              aria-pressed={active}
+            >
+              <span className="scenario-card-code">{code}</span>
+              <span className="scenario-card-copy">
+                <strong>{label}</strong>
+                <span>{kind}</span>
+              </span>
+              <span className="scenario-card-arrow" aria-hidden="true">
+                {active ? "●" : "↗"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {error && (
+        <p className="error-line" role="alert">
+          <span>ERROR</span>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
