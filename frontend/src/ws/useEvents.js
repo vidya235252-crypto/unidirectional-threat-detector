@@ -14,7 +14,7 @@ export function useEvents() {
 
     async function loadRecentAlerts() {
       try {
-        const res = await fetch(`${API_BASE}/api/alerts?limit=5`);
+        const res = await fetch(`${API_BASE}/api/alerts?limit=20`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setAlerts(data.slice(0, 5));
@@ -48,7 +48,6 @@ export function useEvents() {
       }
 
       if (message.type === "scenario_started") {
-        setAlerts([]);
         setCurrentScenario(message.scenario);
       }
 
@@ -95,9 +94,35 @@ export function useEvents() {
       }
     }
 
-    syncScenarioState();
+    async function syncRecentAlerts() {
+      try {
+        const res = await fetch(`${API_BASE}/api/alerts?limit=20`);
+        if (!res.ok || cancelled) return;
 
-    const interval = setInterval(syncScenarioState, 500);
+        const data = await res.json();
+        setAlerts((prev) => {
+          const merged = new Map();
+          for (const alert of [...data, ...prev]) {
+            if (alert?.alert_id && !merged.has(alert.alert_id)) {
+              merged.set(alert.alert_id, alert);
+            }
+          }
+          return [...merged.values()]
+            .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
+            .slice(0, 20);
+        });
+      } catch {
+        // WebSocket remains the primary live channel.
+      }
+    }
+
+    syncScenarioState();
+    syncRecentAlerts();
+
+    const interval = setInterval(() => {
+      syncScenarioState();
+      syncRecentAlerts();
+    }, 500);
 
     return () => {
       cancelled = true;
