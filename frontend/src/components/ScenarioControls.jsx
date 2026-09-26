@@ -17,19 +17,24 @@ export function ScenarioControls({ currentScenario, onScenarioSelect }) {
 
   async function startScenario(name) {
     setError(null);
-    onScenarioSelect?.(name);
     try {
       const res = await fetch(`${API_BASE}/api/scenario/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario: name }),
       });
+
       if (!res.ok) {
-        const body = await res.json();
+        const body = await res.json().catch(() => ({}));
         setError(body.detail ?? "Failed to start scenario");
+        return false;
       }
+
+      onScenarioSelect?.(name);
+      return true;
     } catch {
       setError("Could not reach backend");
+      return false;
     }
   }
 
@@ -64,12 +69,17 @@ export function ScenarioControls({ currentScenario, onScenarioSelect }) {
   async function runSequence() {
     setSequenceRunning(true);
     setError(null);
-    for (const { key } of SCENARIOS) {
-      await startScenario(key);
-      await new Promise((r) => setTimeout(r, 500));
-      await waitForIdle();
+
+    try {
+      for (const { key } of SCENARIOS) {
+        const started = await startScenario(key);
+        if (!started) return;
+        await new Promise((r) => setTimeout(r, 300));
+        await waitForIdle();
+      }
+    } finally {
+      setSequenceRunning(false);
     }
-    setSequenceRunning(false);
   }
 
   const busy = currentScenario !== null || sequenceRunning;

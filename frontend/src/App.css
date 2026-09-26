@@ -28,19 +28,26 @@
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  display: grid;
-  place-items: center;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid rgba(79, 209, 197, 0.45);
+  background: rgba(79, 209, 197, 0.04);
 }
 
-.brand-mark img {
-  width: 42px;
-  height: 42px;
+.brand-mark span {
   display: block;
-  object-fit: contain;
+  width: 3px;
+  background: var(--accent);
 }
+
+.brand-mark span:nth-child(1) { height: 8px; opacity: 0.55; }
+.brand-mark span:nth-child(2) { height: 14px; opacity: 0.8; }
+.brand-mark span:nth-child(3) { height: 18px; }
 
 .brand-name {
   font-family: var(--font-mono);
