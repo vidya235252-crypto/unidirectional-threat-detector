@@ -51,7 +51,12 @@ export function AlertFeed({ alerts }) {
           className={`alert-row ${index === 0 ? "fresh" : ""}`}
         >
           <div className="alert-row-head">
-            <span className="alert-timestamp">{formatTime(alert.timestamp)}</span>
+            <div className="alert-time-block">
+              <span className="alert-timestamp">{formatTime(alert.timestamp)}</span>
+              <span className="alert-live-mark">
+                {index === 0 ? "LATEST" : "EVENT"}
+              </span>
+            </div>
 
             <div className="alert-identity">
               <span className="alert-class">
@@ -61,12 +66,13 @@ export function AlertFeed({ alerts }) {
             </div>
 
             <span
-              className="severity-tag"
+              className={`severity-tag severity-${String(alert.severity ?? "").toLowerCase()}`}
               style={{
                 color: SEVERITY_COLORS[alert.severity] ?? "var(--text-dim)",
               }}
             >
-              {alert.severity}
+              <span className="severity-dot" aria-hidden="true" />
+              {alert.severity ?? "UNKNOWN"}
             </span>
           </div>
 
