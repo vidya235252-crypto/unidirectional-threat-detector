@@ -85,46 +85,56 @@ async def _stream_scenario(name: str) -> None:
 
     await manager.broadcast({"type": "scenario_started", "scenario": name})
 
-    iterator = iter(stream_scenario(path))
-    while True:
-        started = time.perf_counter()
-        try:
-            flow, fv, alert = next(iterator)
-        except StopIteration:
-            break
-        _record_detection_latency(started)
-        _record_flow()
+    try:
+        iterator = iter(stream_scenario(path))
+        while True:
+            started = time.perf_counter()
+            try:
+                flow, fv, alert = next(iterator)
+            except StopIteration:
+                break
 
-        database.insert_flow(
-            flow_id=fv.flow_id,
-            timestamp=fv.timestamp,
-            src_ip=flow.src_ip,
-            dst_ip=flow.dst_ip,
-            src_port=flow.src_port,
-            dst_port=flow.dst_port,
-            protocol=flow.protocol,
-            duration=fv.flow_duration,
-            packet_count=fv.packet_count,
-            byte_count=fv.byte_count,
-        )
+            _record_detection_latency(started)
+            _record_flow()
 
-        if alert is not None:
-            database.insert_alert(
-                alert_id=alert.alert_id,
-                timestamp=alert.timestamp,
-                flow_id=alert.flow_id,
-                threat_class=alert.threat_class,
-                severity=alert.severity,
-                confidence=alert.confidence,
-                anomaly_score=alert.anomaly_score,
-                evidence=alert.evidence,
-                model_version=alert.model_version,
+            database.insert_flow(
+                flow_id=fv.flow_id,
+                timestamp=fv.timestamp,
+                src_ip=flow.src_ip,
+                dst_ip=flow.dst_ip,
+                src_port=flow.src_port,
+                dst_port=flow.dst_port,
+                protocol=flow.protocol,
+                duration=fv.flow_duration,
+                packet_count=fv.packet_count,
+                byte_count=fv.byte_count,
             )
-            await manager.broadcast({"type": "alert", "scenario": name, "alert": _alert_to_dict(alert)})
-            await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
+
+            if alert is not None:
+                database.insert_alert(
+                    alert_id=alert.alert_id,
+                    timestamp=alert.timestamp,
+                    flow_id=alert.flow_id,
+                    threat_class=alert.threat_class,
+                    severity=alert.severity,
+                    confidence=alert.confidence,
+                    anomaly_score=alert.anomaly_score,
+                    evidence=alert.evidence,
+                    model_version=alert.model_version,
+                )
+                await manager.broadcast({"type": "alert", "scenario": name, "alert": _alert_to_dict(alert)})
+                await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
+
+    except FileNotFoundError as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
+        return
+    except Exception as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"scenario failed: {type(exc).__name__}: {exc}"})
+        return
+    finally:
+        _current_scenario = None
 
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
-    _current_scenario = None
 
 
 def _insert_metadata_flow(flow_id: str, timestamp: str, src_ip: str, protocol: str, dst_port: int) -> None:

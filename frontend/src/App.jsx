@@ -20,8 +20,10 @@ function App() {
     <div className="app-shell">
       <aside className="side-nav" aria-label="Primary navigation">
         <div className="brand">
-          <div className="brand-mark">
-            <img src="/traceline-logo.svg" alt="TRACELINE" />
+          <div className="brand-mark" aria-hidden="true">
+            <span />
+            <span />
+            <span />
           </div>
           <div>
             <div className="brand-name">TRACELINE</div>
