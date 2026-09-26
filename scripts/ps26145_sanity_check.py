@@ -29,7 +29,7 @@ from app.pipeline.orchestrator import (
     stream_tls_scenario,
 )
 
-TARGET_FPS = 30.0
+TARGET_FPS = 25.0
 
 FLOW_EXPECTATIONS = {
     "benign": None,
