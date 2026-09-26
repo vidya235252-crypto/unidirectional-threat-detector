@@ -31,26 +31,22 @@ function App() {
 
         <div className="nav-section-label">OPERATIONS</div>
         <nav>
-          <button className="nav-item active" type="button">
+          <a className="nav-item active" href="#overview">
             <span className="nav-index">01</span>
             Overview
-          </button>
-          <button className="nav-item" type="button">
+          </a>
+          <a className="nav-item" href="#scenarios">
             <span className="nav-index">02</span>
-            Live detections
-          </button>
-          <button className="nav-item" type="button">
+            Detection scenarios
+          </a>
+          <a className="nav-item" href="#detections">
             <span className="nav-index">03</span>
-            Investigations
-          </button>
-          <button className="nav-item" type="button">
+            Live detections
+          </a>
+          <a className="nav-item" href="#sensor-path">
             <span className="nav-index">04</span>
-            Traffic intelligence
-          </button>
-          <button className="nav-item" type="button">
-            <span className="nav-index">05</span>
-            System health
-          </button>
+            Sensor path
+          </a>
         </nav>
 
         <div className="side-nav-footer">
@@ -91,7 +87,7 @@ function App() {
           </div>
         </header>
 
-        <section className="sensor-banner" aria-label="Passive sensor status">
+        <section id="sensor-path" className="sensor-banner" aria-label="Passive sensor status">
           <div className="sensor-flow">
             <div className="flow-node">
               <span className="flow-kicker">SOURCE</span>
@@ -123,7 +119,7 @@ function App() {
           </div>
         </section>
 
-        <section className="overview-grid">
+        <section id="overview" className="overview-grid">
           <div className="section-heading">
             <div>
               <div className="eyebrow">TELEMETRY</div>
@@ -138,7 +134,7 @@ function App() {
           <StatsPanel refreshKey={currentScenario} />
         </section>
 
-        <section className="scenario-section">
+        <section id="scenarios" className="scenario-section">
           <div className="section-heading compact">
             <div>
               <div className="eyebrow">DEMO / VALIDATION</div>
@@ -151,7 +147,7 @@ function App() {
           <ScenarioControls currentScenario={currentScenario} />
         </section>
 
-        <section className="alert-log">
+        <section id="detections" className="alert-log">
           <div className="section-heading compact">
             <div>
               <div className="eyebrow">REAL-TIME EVENTS</div>
