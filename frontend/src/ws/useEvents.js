@@ -48,8 +48,7 @@ export function useEvents() {
       }
 
       if (message.type === "scenario_started") {
-        // Keep the selected session visible while events are arriving.
-        // Clearing here can race with the first alert on fast scenarios.
+        setAlerts([]);
         setCurrentScenario(message.scenario);
       }
 
@@ -57,9 +56,7 @@ export function useEvents() {
         message.type === "scenario_complete" ||
         message.type === "scenario_stopped"
       ) {
-        // Do not clear the UI session immediately. The selected scenario
-        // remains responsible for filtering the live feed after completion.
-        // The REST stats poll still tracks the actual backend runtime state.
+        setCurrentScenario(null);
       }
     };
 
@@ -100,37 +97,11 @@ export function useEvents() {
 
     syncScenarioState();
 
-    async function syncRecentAlerts() {
-      try {
-        const res = await fetch(API_BASE + "/api/alerts?limit=20");
-        if (!res.ok || cancelled) return;
-
-        const data = await res.json();
-        if (cancelled || !Array.isArray(data)) return;
-
-        setAlerts((prev) => {
-          const merged = [...prev, ...data];
-          const unique = new Map(
-            merged
-              .filter((item) => item?.alert_id)
-              .map((item) => [item.alert_id, item])
-          );
-          return Array.from(unique.values())
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-            .slice(0, 20);
-        });
-      } catch {
-        // WebSocket remains the primary live channel.
-      }
-    }
-
     const interval = setInterval(syncScenarioState, 500);
-    const alertInterval = setInterval(syncRecentAlerts, 500);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
-      clearInterval(alertInterval);
     };
   }, []);
 
