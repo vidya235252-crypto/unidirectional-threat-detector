@@ -48,7 +48,8 @@ export function useEvents() {
       }
 
       if (message.type === "scenario_started") {
-        setAlerts([]);
+        // Keep the selected session visible while events are arriving.
+        // Clearing here can race with the first alert on fast scenarios.
         setCurrentScenario(message.scenario);
       }
 
@@ -56,7 +57,9 @@ export function useEvents() {
         message.type === "scenario_complete" ||
         message.type === "scenario_stopped"
       ) {
-        setCurrentScenario(null);
+        // Do not clear the UI session immediately. The selected scenario
+        // remains responsible for filtering the live feed after completion.
+        // The REST stats poll still tracks the actual backend runtime state.
       }
     };
 
