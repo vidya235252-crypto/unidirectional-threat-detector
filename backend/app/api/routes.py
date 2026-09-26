@@ -184,10 +184,13 @@ async def _stream_dns_scenario(name: str) -> None:
                 await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
-        _current_scenario = None
         return
+    except Exception as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"scenario failed: {type(exc).__name__}: {exc}"})
+        return
+    finally:
+        _current_scenario = None
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
-    _current_scenario = None
 
 
 async def _stream_tls_scenario(name: str) -> None:
@@ -216,10 +219,13 @@ async def _stream_tls_scenario(name: str) -> None:
                 await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
-        _current_scenario = None
         return
+    except Exception as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"scenario failed: {type(exc).__name__}: {exc}"})
+        return
+    finally:
+        _current_scenario = None
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
-    _current_scenario = None
 
 
 def _run_scenario_task(name: str) -> asyncio.Task:
