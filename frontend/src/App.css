@@ -1177,3 +1177,60 @@ html {
     gap: 0.45rem;
   }
 }
+
+
+/* Telemetry instrument framing */
+.stats-panel {
+  border: 1px solid var(--border);
+  background: var(--panel-deep);
+}
+
+.stats-panel .stats-strip {
+  border: 0;
+}
+
+.stats-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.42rem 0.75rem;
+  border-top: 1px solid var(--border);
+  color: #555e6b;
+  font-family: var(--font-mono);
+  font-size: 0.49rem;
+  letter-spacing: 0.08em;
+}
+
+.stats-caption span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.stats-caption i {
+  width: 4px;
+  height: 4px;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 209, 197, 0.06);
+}
+
+.stat-threat {
+  background:
+    linear-gradient(180deg, rgba(79, 209, 197, 0.018), transparent 72%),
+    rgba(255, 255, 255, 0.008);
+}
+
+.stat-threat .stat-value {
+  color: #d4d9e0;
+}
+
+@media (max-width: 760px) {
+  .stats-caption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+}
