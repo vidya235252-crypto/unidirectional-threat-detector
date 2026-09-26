@@ -99,15 +99,39 @@ def insert_alert(
     conn.commit()
 
 
-def list_alerts() -> list[dict]:
+def list_alerts(limit: Optional[int] = None) -> list[dict]:
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM alerts ORDER BY timestamp DESC").fetchall()
+    query = """
+        SELECT a.*, f.src_ip, f.dst_ip, f.src_port, f.dst_port, f.protocol
+        FROM alerts a
+        LEFT JOIN flows f ON f.flow_id = a.flow_id
+        ORDER BY a.timestamp DESC
+    """
+    params = ()
+    if limit is not None:
+        query += " LIMIT ?"
+        params = (limit,)
+    rows = conn.execute(query, params).fetchall()
     return [_alert_row_to_dict(row) for row in rows]
+
+
+def get_flow(flow_id: str) -> Optional[dict]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM flows WHERE flow_id = ?", (flow_id,)).fetchone()
+    return dict(row) if row else None
 
 
 def get_alert(alert_id: str) -> Optional[dict]:
     conn = get_connection()
-    row = conn.execute("SELECT * FROM alerts WHERE alert_id = ?", (alert_id,)).fetchone()
+    row = conn.execute(
+        """
+        SELECT a.*, f.src_ip, f.dst_ip, f.src_port, f.dst_port, f.protocol
+        FROM alerts a
+        LEFT JOIN flows f ON f.flow_id = a.flow_id
+        WHERE a.alert_id = ?
+        """,
+        (alert_id,),
+    ).fetchone()
     return _alert_row_to_dict(row) if row else None
 
 
@@ -121,11 +145,24 @@ def get_stats() -> dict:
     by_severity_rows = conn.execute(
         "SELECT severity, COUNT(*) as count FROM alerts GROUP BY severity"
     ).fetchall()
+    by_class_severity_rows = conn.execute(
+        """
+        SELECT threat_class, severity, COUNT(*) as count
+        FROM alerts
+        GROUP BY threat_class, severity
+        """
+    ).fetchall()
+
+    alerts_by_class_severity: dict[str, dict[str, int]] = {}
+    for row in by_class_severity_rows:
+        alerts_by_class_severity.setdefault(row["threat_class"], {})[row["severity"]] = row["count"]
+
     return {
         "total_flows": total_flows,
         "total_alerts": total_alerts,
         "alerts_by_class": {row["threat_class"]: row["count"] for row in by_class_rows},
         "alerts_by_severity": {row["severity"]: row["count"] for row in by_severity_rows},
+        "alerts_by_class_severity": alerts_by_class_severity,
     }
 
 

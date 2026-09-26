@@ -80,6 +80,22 @@ def _normalize_anomaly_score(raw_score: float) -> float:
 
 
 def classify(fv: FeatureVector) -> InferenceResponse:
+    # SYN-flood guardrail: the trained RF does not consume SYN count, so
+    # preserve the PS 26145 flow-level SYN signal as a deterministic rule.
+    if (
+        fv.protocol.upper() == "TCP"
+        and fv.syn_count >= 20
+        and fv.packets_per_second >= 100
+    ):
+        return InferenceResponse(
+            flow_id=fv.flow_id,
+            threat_class=ThreatClass.SYN_FLOOD,
+            confidence=min(0.99, 0.80 + min(fv.syn_count / 1000, 0.19)),
+            anomaly_score=min(0.99, 0.80 + min(fv.packets_per_second / 10000, 0.19)),
+            top_features=["syn_count", "packets_per_second"],
+            model_version=MODEL_VERSION + "+syn-rule",
+        )
+
     if fv.unique_dest_ports >= 10 and fv.packet_count <= 5:
         return InferenceResponse(
             flow_id=fv.flow_id,

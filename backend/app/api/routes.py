@@ -1,4 +1,6 @@
 import asyncio
+import time
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +21,34 @@ SCENARIO_NAMES = FLOW_SCENARIOS + DNS_SCENARIOS + TLS_SCENARIOS
 
 _current_task: Optional[asyncio.Task] = None
 _current_scenario: Optional[str] = None
+_flow_times: deque[float] = deque()
+_detection_latencies: deque[float] = deque(maxlen=100)
+
+def _record_flow() -> None:
+    now = time.monotonic()
+    _flow_times.append(now)
+    cutoff = now - 5.0
+    while _flow_times and _flow_times[0] < cutoff:
+        _flow_times.popleft()
+
+def _record_detection_latency(started: float) -> None:
+    _detection_latencies.append((time.perf_counter() - started) * 1000)
+
+def _runtime_telemetry() -> dict:
+    now = time.monotonic()
+    cutoff = now - 5.0
+    while _flow_times and _flow_times[0] < cutoff:
+        _flow_times.popleft()
+    throughput = len(_flow_times) / 5.0
+    latency = (
+        sum(_detection_latencies) / len(_detection_latencies)
+        if _detection_latencies
+        else 0.0
+    )
+    return {
+        "throughput_fps": round(throughput, 1),
+        "detection_latency_ms": round(latency, 1),
+    }
 
 
 class ScenarioStartRequest(BaseModel):
@@ -30,10 +60,16 @@ def _scenario_path(name: str) -> Path:
 
 
 def _alert_to_dict(alert) -> dict:
+    flow = database.get_flow(alert.flow_id) or {}
     return {
         "alert_id": alert.alert_id,
         "timestamp": alert.timestamp,
         "flow_id": alert.flow_id,
+        "src_ip": flow.get("src_ip"),
+        "dst_ip": flow.get("dst_ip") or None,
+        "src_port": flow.get("src_port") or None,
+        "dst_port": flow.get("dst_port") or None,
+        "protocol": flow.get("protocol"),
         "threat_class": alert.threat_class,
         "severity": alert.severity,
         "confidence": alert.confidence,
@@ -49,7 +85,16 @@ async def _stream_scenario(name: str) -> None:
 
     await manager.broadcast({"type": "scenario_started", "scenario": name})
 
-    for flow, fv, alert in stream_scenario(path):
+    iterator = iter(stream_scenario(path))
+    while True:
+        started = time.perf_counter()
+        try:
+            flow, fv, alert = next(iterator)
+        except StopIteration:
+            break
+        _record_detection_latency(started)
+        _record_flow()
+
         database.insert_flow(
             flow_id=fv.flow_id,
             timestamp=fv.timestamp,
@@ -75,14 +120,29 @@ async def _stream_scenario(name: str) -> None:
                 evidence=alert.evidence,
                 model_version=alert.model_version,
             )
-            await manager.broadcast({"type": "alert", "alert": _alert_to_dict(alert)})
+            await manager.broadcast({"type": "alert", "scenario": name, "alert": _alert_to_dict(alert)})
             await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
 
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
     _current_scenario = None
 
 
-async def _emit_alert(alert) -> None:
+def _insert_metadata_flow(flow_id: str, timestamp: str, src_ip: str, protocol: str, dst_port: int) -> None:
+    database.insert_flow(
+        flow_id=flow_id,
+        timestamp=timestamp,
+        src_ip=src_ip,
+        dst_ip="",
+        src_port=0,
+        dst_port=dst_port,
+        protocol=protocol,
+        duration=0.0,
+        packet_count=1,
+        byte_count=0,
+    )
+
+
+async def _emit_alert(alert, scenario: str) -> None:
     database.insert_alert(
         alert_id=alert.alert_id,
         timestamp=alert.timestamp,
@@ -94,7 +154,7 @@ async def _emit_alert(alert) -> None:
         evidence=alert.evidence,
         model_version=alert.model_version,
     )
-    await manager.broadcast({"type": "alert", "alert": _alert_to_dict(alert)})
+    await manager.broadcast({"type": "alert", "scenario": scenario, "alert": _alert_to_dict(alert)})
     await asyncio.sleep(config.SCENARIO_STREAM_DELAY_SECONDS)
 
 
@@ -104,15 +164,33 @@ async def _stream_dns_scenario(name: str) -> None:
 
     await manager.broadcast({"type": "scenario_started", "scenario": name})
     try:
-        for _record, alert in stream_dns_scenario(path):
+        iterator = iter(stream_dns_scenario(path))
+        while True:
+            started = time.perf_counter()
+            try:
+                _record, alert = next(iterator)
+            except StopIteration:
+                break
+            _record_detection_latency(started)
+            _record_flow()
+            _insert_metadata_flow(
+                _record.flow_id,
+                _record.timestamp,
+                _record.src_ip,
+                "DNS",
+                53,
+            )
             if alert is not None:
-                await _emit_alert(alert)
+                await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
-        _current_scenario = None
         return
+    except Exception as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"scenario failed: {type(exc).__name__}: {exc}"})
+        return
+    finally:
+        _current_scenario = None
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
-    _current_scenario = None
 
 
 async def _stream_tls_scenario(name: str) -> None:
@@ -121,15 +199,33 @@ async def _stream_tls_scenario(name: str) -> None:
 
     await manager.broadcast({"type": "scenario_started", "scenario": name})
     try:
-        for _record, alert in stream_tls_scenario(path):
+        iterator = iter(stream_tls_scenario(path))
+        while True:
+            started = time.perf_counter()
+            try:
+                _record, alert = next(iterator)
+            except StopIteration:
+                break
+            _record_detection_latency(started)
+            _record_flow()
+            _insert_metadata_flow(
+                _record.flow_id,
+                _record.timestamp,
+                _record.src_ip,
+                "TLS",
+                443,
+            )
             if alert is not None:
-                await _emit_alert(alert)
+                await _emit_alert(alert, name)
     except FileNotFoundError as exc:
         await manager.broadcast({"type": "error", "scenario": name, "message": f"detector data missing: {exc}"})
-        _current_scenario = None
         return
+    except Exception as exc:
+        await manager.broadcast({"type": "error", "scenario": name, "message": f"scenario failed: {type(exc).__name__}: {exc}"})
+        return
+    finally:
+        _current_scenario = None
     await manager.broadcast({"type": "scenario_complete", "scenario": name})
-    _current_scenario = None
 
 
 def _run_scenario_task(name: str) -> asyncio.Task:
@@ -175,8 +271,8 @@ async def stop_scenario():
 
 
 @router.get("/api/alerts")
-def get_alerts():
-    return database.list_alerts()
+def get_alerts(limit: Optional[int] = None):
+    return database.list_alerts(limit=limit)
 
 
 @router.get("/api/alerts/{alert_id}")
@@ -190,6 +286,7 @@ def get_alert(alert_id: str):
 @router.get("/api/stats")
 def get_stats():
     stats = database.get_stats()
+    stats.update(_runtime_telemetry())
     stats["running"] = _current_task is not None and not _current_task.done()
     stats["current_scenario"] = _current_scenario
     return stats

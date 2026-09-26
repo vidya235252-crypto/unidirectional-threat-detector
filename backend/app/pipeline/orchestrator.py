@@ -53,10 +53,10 @@ def stream_scenario(scenario_path: Path) -> Iterator[StreamItem]:
             response = InferenceResponse(
                 flow_id=fv.flow_id,
                 threat_class=ThreatClass.DATA_EXFILTRATION,
-                confidence=1.0,
+                confidence=0.0,
                 anomaly_score=1.0,
                 top_features=["outbound_behavior"],
-                model_version="exfil-behavior-v1",
+                model_version="behavioral-exfil-v1",
             )
         else:
             response = classify(fv)
