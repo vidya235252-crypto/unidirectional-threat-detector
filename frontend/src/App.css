@@ -613,11 +613,27 @@
   font-size: 0.65rem;
 }
 
+.alert-identity {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
 .alert-class {
   overflow: hidden;
   color: #e7ebf0;
   font-size: 0.76rem;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-id {
+  overflow: hidden;
+  color: #555e6b;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -634,25 +650,88 @@
 .alert-meta {
   display: flex;
   gap: 1rem;
-  margin: 0.45rem 0 0.5rem 7.3rem;
+  margin: 0.45rem 0 0.65rem 7.3rem;
   color: #666e7b;
   font-family: var(--font-mono);
-  font-size: 0.61rem;
+  font-size: 0.59rem;
+}
+
+.alert-meta span {
+  display: inline-flex;
+  gap: 0.28rem;
+}
+
+.alert-meta b {
+  color: #818a98;
+  font-size: 0.53rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 .alert-evidence {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.28rem 1.5rem;
+  gap: 0.45rem 1.5rem;
   margin-left: 7.3rem;
-  color: #9aa2ae;
-  font-size: 0.7rem;
 }
 
-.alert-evidence div {
+.evidence-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding-top: 0.35rem;
+  border-top: 1px solid #1d222a;
+}
+
+.evidence-label {
+  color: #59616e;
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+}
+
+.evidence-value {
+  min-width: 0;
   overflow: hidden;
+  color: #9aa2ae;
+  font-size: 0.68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.empty-marker {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border: 1px solid #555e6b;
+  border-radius: 50%;
+}
+
+.alert-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.alert-empty strong,
+.alert-empty span {
+  display: block;
+}
+
+.alert-empty strong {
+  color: #a7aeb8;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.07em;
+}
+
+.alert-empty div span {
+  margin-top: 0.2rem;
+  color: var(--text-dim);
+  font-size: 0.72rem;
 }
 
 @media (max-width: 1050px) {
