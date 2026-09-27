@@ -1,0 +1,11 @@
+# scripts/ — detector, training, and evaluation utilities
+# Generated from an actual AST scan of every .py file in scripts/, not guessed.
+# Pinned versions for joblib and scikit-learn match backend/requirements.txt,
+# since scripts/ trains the same joblib models the backend loads at runtime —
+# a version mismatch between the two is the most common source of a silent
+# "loads fine, predicts garbage" bug, so keep these two in lockstep.
+
+numpy>=1.26
+pandas>=2.2
+scikit-learn==1.9.0
+joblib==1.4.2
