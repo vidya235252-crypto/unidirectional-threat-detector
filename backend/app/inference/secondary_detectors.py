@@ -15,12 +15,12 @@ DGA_MODEL_VERSION = "dga-tunneling-v1"
 JA3_MODEL_VERSION = "ja3-v1"
 
 
-def classify_dns_record(domain: str, query_type: str, timestamp: str, src_ip: str) -> Optional[Alert]:
+def classify_dns_record(domain: str, query_type: str, timestamp: str, src_ip: str, flow_id: Optional[str] = None) -> Optional[Alert]:
     result = classify_dns_query(domain, query_type, timestamp, src_ip)
     if not result["flagged"]:
         return None
 
-    flow_id = f"dns_{uuid.uuid4().hex[:8]}"
+    flow_id = flow_id or f"dns_{uuid.uuid4().hex[:8]}"
     response = InferenceResponse(
         flow_id=flow_id,
         threat_class=ThreatClass.DGA_DNS_TUNNELING,
@@ -51,13 +51,13 @@ def classify_dns_record(domain: str, query_type: str, timestamp: str, src_ip: st
 
 
 def classify_tls_record(
-    fingerprint: str, transport: str, role: str, timestamp: str, src_ip: str
+    fingerprint: str, transport: str, role: str, timestamp: str, src_ip: str, flow_id: Optional[str] = None
 ) -> Optional[Alert]:
     result = classify_tls_session(fingerprint, transport, role, timestamp, src_ip)
     if not result["flagged"]:
         return None
 
-    flow_id = f"tls_{uuid.uuid4().hex[:8]}"
+    flow_id = flow_id or f"tls_{uuid.uuid4().hex[:8]}"
     response = InferenceResponse(
         flow_id=flow_id,
         threat_class=ThreatClass.MALICIOUS_TLS,

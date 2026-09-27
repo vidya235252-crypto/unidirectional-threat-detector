@@ -178,13 +178,13 @@ async def _stream_dns_scenario(name: str) -> None:
         while True:
             started = time.perf_counter()
             try:
-                _record, alert = next(iterator)
+                _record, alert, flow_id = next(iterator)
             except StopIteration:
                 break
             _record_detection_latency(started)
             _record_flow()
             _insert_metadata_flow(
-                _record.flow_id,
+                flow_id,
                 _record.timestamp,
                 _record.src_ip,
                 "DNS",
@@ -213,13 +213,13 @@ async def _stream_tls_scenario(name: str) -> None:
         while True:
             started = time.perf_counter()
             try:
-                _record, alert = next(iterator)
+                _record, alert, flow_id = next(iterator)
             except StopIteration:
                 break
             _record_detection_latency(started)
             _record_flow()
             _insert_metadata_flow(
-                _record.flow_id,
+                flow_id,
                 _record.timestamp,
                 _record.src_ip,
                 "TLS",

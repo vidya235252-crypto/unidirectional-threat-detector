@@ -1,3 +1,5 @@
 {"fingerprint":"00000000000000000000000000000000","transport":"tls","role":"client","timestamp":"2026-09-11T13:00:00Z","src_ip":"10.0.0.66"}
 {"fingerprint":"00000000000000000000000000000000","transport":"tls","role":"client","timestamp":"2026-09-11T13:00:01Z","src_ip":"10.0.0.66"}
 {"fingerprint":"00000000000000000000000000000000","transport":"quic","role":"client","timestamp":"2026-09-11T13:00:02Z","src_ip":"10.0.0.66"}
+{"fingerprint":"a1b2c3d4e5f60718293a4b5c6d7e8f90","transport":"tls","role":"client","timestamp":"2026-09-11T13:02:00Z","src_ip":"10.0.0.71"}
+{"fingerprint":"f0e1d2c3b4a5968778695a4b3c2d1e0f","transport":"tls","role":"client","timestamp":"2026-09-11T13:04:00Z","src_ip":"10.0.0.83"}

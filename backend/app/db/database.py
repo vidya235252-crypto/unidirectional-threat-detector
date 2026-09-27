@@ -1,10 +1,28 @@
 import json
 import sqlite3
+import threading
+from functools import wraps
 from typing import Optional
 
 from app.core.config import DB_PATH
 
 _connection: Optional[sqlite3.Connection] = None
+
+# The connection above is shared across every request, but FastAPI runs sync
+# route handlers in a thread pool. sqlite3 (even with check_same_thread=False)
+# is not safe for concurrent statement execution on one connection from
+# multiple threads at once - it can hand back a cursor whose column layout
+# was clobbered by a concurrent query, causing intermittent IndexErrors on
+# row["column"] access under load. This lock serializes all DB access.
+_db_lock = threading.Lock()
+
+
+def _synchronized(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _db_lock:
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def get_connection() -> sqlite3.Connection:
@@ -16,6 +34,7 @@ def get_connection() -> sqlite3.Connection:
     return _connection
 
 
+@_synchronized
 def init_db() -> None:
     conn = get_connection()
     conn.execute(
@@ -52,6 +71,7 @@ def init_db() -> None:
     conn.commit()
 
 
+@_synchronized
 def insert_flow(
     flow_id: str,
     timestamp: str,
@@ -76,6 +96,7 @@ def insert_flow(
     conn.commit()
 
 
+@_synchronized
 def insert_alert(
     alert_id: str,
     timestamp: str,
@@ -99,6 +120,7 @@ def insert_alert(
     conn.commit()
 
 
+@_synchronized
 def list_alerts(limit: Optional[int] = None) -> list[dict]:
     conn = get_connection()
     query = """
@@ -115,12 +137,14 @@ def list_alerts(limit: Optional[int] = None) -> list[dict]:
     return [_alert_row_to_dict(row) for row in rows]
 
 
+@_synchronized
 def get_flow(flow_id: str) -> Optional[dict]:
     conn = get_connection()
     row = conn.execute("SELECT * FROM flows WHERE flow_id = ?", (flow_id,)).fetchone()
     return dict(row) if row else None
 
 
+@_synchronized
 def get_alert(alert_id: str) -> Optional[dict]:
     conn = get_connection()
     row = conn.execute(
@@ -135,6 +159,7 @@ def get_alert(alert_id: str) -> Optional[dict]:
     return _alert_row_to_dict(row) if row else None
 
 
+@_synchronized
 def get_stats() -> dict:
     conn = get_connection()
     total_flows = conn.execute("SELECT COUNT(*) FROM flows").fetchone()[0]
@@ -172,6 +197,7 @@ def _alert_row_to_dict(row: sqlite3.Row) -> dict:
     return d
 
 
+@_synchronized
 def reset_db() -> None:
     conn = get_connection()
     conn.execute("DELETE FROM flows")
